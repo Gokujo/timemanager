@@ -1,0 +1,20 @@
+/* Status colors for time tracking */
+.status-green {
+  background-color: #10b981; /* Green-500 */
+}
+
+.status-yellow {
+  background-color: #f59e0b; /* Yellow-500 */
+}
+
+.status-red {
+  background-color: #ef4444; /* Red-500 */
+}
+
+/* Glass effect for the main container */
+.glass-effect {
+  background-color: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
