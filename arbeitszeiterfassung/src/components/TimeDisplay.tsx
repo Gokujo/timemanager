@@ -1,5 +1,5 @@
 import React from 'react';
-import { formatMinutes } from '../utils/timeUtils';
+import { formatMinutesForDisplay } from '../utils/userSettingsUtils';
 
 interface TimeDisplayProps {
   workedMinutes: number;
@@ -20,11 +20,11 @@ const TimeDisplay: React.FC<TimeDisplayProps> = ({
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
       <div className="p-4 bg-white/20 rounded-lg text-white">
         <p className="text-sm">Geleistete Arbeitszeit</p>
-        <p className="text-2xl font-bold">{formatMinutes(workedMinutes)}</p>
+        <p className="text-2xl font-bold">{formatMinutesForDisplay(workedMinutes)}</p>
       </div>
       <div className="p-4 bg-white/20 rounded-lg text-white">
         <p className="text-sm">{hasOvertime ? "Überstunden" : "Verbleibende Zeit"}</p>
-        <p className="text-2xl font-bold">{hasOvertime ? formatMinutes(overtimeMinutes) : formatMinutes(remainingMinutes)}</p>
+        <p className="text-2xl font-bold">{hasOvertime ? formatMinutesForDisplay(overtimeMinutes) : formatMinutesForDisplay(remainingMinutes)}</p>
       </div>
       <div className="p-4 bg-white/20 rounded-lg text-white">
         <p className="text-sm">Vorauss. Arbeitsende</p>

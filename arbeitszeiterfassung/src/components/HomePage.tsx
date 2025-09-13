@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { WORK_DAYS } from '../constants/workDays';
+import { getWorkDays } from '../constants/workDays';
 import { calculateEndTime } from '../utils/timeUtils';
 import { useTimeTracking } from '../hooks/useTimeTracking';
 import { openTimePopup } from '../utils/popupUtils';
@@ -13,10 +13,11 @@ import BreakManager from './BreakManager';
 import Warnings from './Warnings';
 
 const HomePage: React.FC = () => {
-  // Get current day's minimum work minutes
+  // Get current day's minimum work minutes from user settings
   const today = new Date();
   const dayOfWeek = today.getDay();
-  const minWorkMinutes = WORK_DAYS[dayOfWeek];
+  const workDays = getWorkDays();
+  const minWorkMinutes = workDays[dayOfWeek];
 
   // Use the time tracking hook
   const [state, actions] = useTimeTracking();

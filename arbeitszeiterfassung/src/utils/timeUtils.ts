@@ -69,6 +69,7 @@ export const formatMinutes = (minutes: number): string => {
   return `${Math.floor(minutes / 60)}h ${Math.floor(minutes % 60)}m`;
 };
 
+
 /**
  * Formats minutes to hours, minutes and seconds string
  */

@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Break } from '../interfaces/break';
-import { PLANS } from '../constants/plans';
-import { WORK_DAYS } from '../constants/workDays';
+import { getPlans } from '../constants/plans';
+import { getWorkDays } from '../constants/workDays';
 import { calculateWorkedTime, saveStateToLocalStorage, loadStateFromLocalStorage } from '../utils/timeUtils';
 import { validateWorkTime, ValidationResult } from '../utils/validationUtils';
+import { getDefaultBreaks } from '../utils/userSettingsUtils';
 
 export interface TimeTrackingState {
   plan: string;
@@ -33,33 +34,17 @@ export interface TimeTrackingActions {
   updateBreakEnd: (index: number, value: string) => void;
 }
 
-// Erstelle vordefinierte Pausenzeiten für den ersten Start
+// Erstelle vordefinierte Pausenzeiten aus Benutzereinstellungen
 const createDefaultBreaks = (): Break[] => {
-  const baseDate = new Date();
-  baseDate.setHours(0, 0, 0, 0); // Setze auf Mitternacht als Basis
-  
-  // Pause 1: 9:00-9:15 (15 Minuten)
-  const break1Start = new Date(baseDate);
-  break1Start.setHours(9, 0, 0, 0);
-  const break1End = new Date(baseDate);
-  break1End.setHours(9, 15, 0, 0);
-  
-  // Pause 2: 12:00-12:30 (30 Minuten)
-  const break2Start = new Date(baseDate);
-  break2Start.setHours(12, 0, 0, 0);
-  const break2End = new Date(baseDate);
-  break2End.setHours(12, 30, 0, 0);
-  
-  return [
-    { start: break1Start, end: break1End, duration: 15 },
-    { start: break2Start, end: break2End, duration: 30 }
-  ];
+  return getDefaultBreaks();
 };
 
 export const useTimeTracking = (): [TimeTrackingState, TimeTrackingActions] => {
   const today = new Date();
   const dayOfWeek = today.getDay();
-  const minWorkMinutes = WORK_DAYS[dayOfWeek];
+  const workDays = getWorkDays();
+  const minWorkMinutes = workDays[dayOfWeek];
+  const plans = getPlans();
 
   // Load state from localStorage or use defaults
   const savedState = loadStateFromLocalStorage();
@@ -114,7 +99,7 @@ export const useTimeTracking = (): [TimeTrackingState, TimeTrackingActions] => {
 
   // Validation
   const validateAndSetWarnings = useCallback(() => {
-    if (!plan || !PLANS[plan]) return;
+    if (!plan || !plans[plan]) return;
 
     // Ensure required breaks are added
     ensureRequiredBreaks();
@@ -124,12 +109,12 @@ export const useTimeTracking = (): [TimeTrackingState, TimeTrackingActions] => {
       breaks,
       startTime,
       status,
-      PLANS[plan],
+      plans[plan],
       plannedWork
     );
 
     setWarnings(result.warnings);
-  }, [workedMinutes, breaks, startTime, status, plan, plannedWork, ensureRequiredBreaks]);
+  }, [workedMinutes, breaks, startTime, status, plan, plannedWork, ensureRequiredBreaks, plans]);
 
   // Update worked minutes in real-time
   useEffect(() => {
@@ -227,9 +212,10 @@ export const useTimeTracking = (): [TimeTrackingState, TimeTrackingActions] => {
 
   const clearAllData = useCallback(() => {
     // Bestätigung des Benutzers einholen
-    if (window.confirm('Möchten Sie wirklich alle Daten löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) {
+    if (window.confirm('Möchten Sie wirklich alle Daten löschen? Diese Aktion kann nicht rückgängig gemacht werden.\n\nEs werden folgende Daten gelöscht:\n• Zeiterfassungsdaten (Arbeitszeiten, Pausen)\n• Benutzereinstellungen (Arbeitszeiten, Pläne, Pausenzeiten)\n• Alle Cookies und LocalStorage-Daten')) {
       // LocalStorage löschen
       localStorage.removeItem('timeTrackingState');
+      localStorage.removeItem('userSettings');
       
       // Alle Cookies löschen
       document.cookie.split(";").forEach((c) => {

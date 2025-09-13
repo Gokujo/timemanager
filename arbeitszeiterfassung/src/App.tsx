@@ -10,6 +10,7 @@ import Header from './components/Header';
 import Impressum from './pages/Impressum';
 import Datenschutz from './pages/Datenschutz';
 import Nutzungsbedingungen from './pages/Nutzungsbedingungen';
+import Benutzereinstellungen from './pages/Benutzereinstellungen';
 
 import HomePage from './components/HomePage';
 
@@ -22,6 +23,7 @@ const App: React.FC = () => {
           
           <Routes>
             <Route path="/" element={<HomePage />} />
+            <Route path="/einstellungen" element={<Benutzereinstellungen />} />
             <Route path="/impressum" element={<Impressum />} />
             <Route path="/datenschutz" element={<Datenschutz />} />
             <Route path="/nutzungsbedingungen" element={<Nutzungsbedingungen />} />
@@ -29,6 +31,13 @@ const App: React.FC = () => {
           
           <div className="mt-8 pt-6 border-t border-white/20">
             <div className="flex flex-wrap justify-center gap-4 text-sm">
+              <Link 
+                to="/einstellungen" 
+                className="text-white/70 hover:text-white transition-colors"
+              >
+                Einstellungen
+              </Link>
+              <span className="text-white/50">•</span>
               <Link 
                 to="/impressum" 
                 className="text-white/70 hover:text-white transition-colors"

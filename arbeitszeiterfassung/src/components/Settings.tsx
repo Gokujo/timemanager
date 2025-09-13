@@ -1,4 +1,5 @@
 import React from 'react';
+import { getTimeFormat, formatTimeForDisplay, parseTimeInput } from '../utils/userSettingsUtils';
 
 interface SettingsProps {
   manualStart: string;
@@ -15,6 +16,9 @@ const Settings: React.FC<SettingsProps> = ({
   onManualStartChange,
   onPlannedWorkChange
 }) => {
+  const timeFormat = getTimeFormat();
+  const isHoursFormat = timeFormat === 'hours';
+  
   return (
     <div className="mb-6">
       <h2 className="text-xl font-semibold text-white mb-2">Einstellungen</h2>
@@ -30,14 +34,19 @@ const Settings: React.FC<SettingsProps> = ({
           />
         </div>
         <div>
-          <label className="text-white block mb-1">Geplante Arbeitszeit (Minuten)</label>
+          <label className="text-white block mb-1">
+            Geplante Arbeitszeit {isHoursFormat ? '(Stunden)' : '(Minuten)'}
+          </label>
           <input
-            type="number"
-            value={plannedWork}
-            onChange={(e) => onPlannedWorkChange(parseInt(e.target.value) || minWorkMinutes)}
+            type={isHoursFormat ? "time" : "number"}
+            value={isHoursFormat ? formatTimeForDisplay(plannedWork) : plannedWork.toString()}
+            onChange={(e) => {
+              const newValue = parseTimeInput(e.target.value);
+              onPlannedWorkChange(newValue);
+            }}
             className="w-full p-2 rounded bg-white/20 text-white border border-white/30"
-            min={minWorkMinutes}
-            title="Geplante Arbeitszeit in Minuten"
+            min={isHoursFormat ? formatTimeForDisplay(minWorkMinutes) : minWorkMinutes}
+            title={`Geplante Arbeitszeit ${isHoursFormat ? 'in Stunden (HH:MM)' : 'in Minuten'}`}
           />
         </div>
       </div>

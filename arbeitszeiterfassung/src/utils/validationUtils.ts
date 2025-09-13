@@ -1,6 +1,6 @@
 import { Break } from "../interfaces/break";
 import { Plan } from "../interfaces/plan";
-import { WORK_DAYS, DAY_NAMES } from "../constants/workDays";
+import { getWorkDays, DAY_NAMES } from "../constants/workDays";
 import { calculatePresenceTime, calculateTotalBreakTime } from "./timeUtils";
 
 export interface ValidationResult {
@@ -24,7 +24,8 @@ export const validateWorkTime = (
   const presenceTime = calculatePresenceTime(startTime, status);
   const today = new Date();
   const dayOfWeek = today.getDay();
-  const minWorkMinutes = WORK_DAYS[dayOfWeek];
+  const workDays = getWorkDays();
+  const minWorkMinutes = workDays[dayOfWeek];
 
   // Check for required breaks based on worked time
   if (workedMinutes > 6 * 60 && totalBreaks < 30) {
@@ -84,9 +85,10 @@ export const validateStartTime = (startTimeStr: string): ValidationResult => {
   const warnings: string[] = [];
   const today = new Date();
   const dayOfWeek = today.getDay();
+  const workDays = getWorkDays();
 
-  // Check if it's a weekend
-  if (dayOfWeek === 0 || dayOfWeek === 6) {
+  // Check if it's a weekend or non-working day
+  if (dayOfWeek === 0 || dayOfWeek === 6 || workDays[dayOfWeek] === 0) {
     warnings.push('Samstag und Sonntag sind arbeitsfrei!');
     return { isValid: false, warnings };
   }
