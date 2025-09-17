@@ -146,8 +146,10 @@ export const useTimeTracking = (): [TimeTrackingState, TimeTrackingActions] => {
 
   // Actions
   const start = useCallback(() => {
-    if (dayOfWeek === 0 || dayOfWeek === 6) {
-      setWarnings(['Samstag und Sonntag sind arbeitsfrei!']);
+    // Check if it's a non-working day based on user settings
+    if (workDays[dayOfWeek] === 0) {
+      const dayNames = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+      setWarnings([`${dayNames[dayOfWeek]} ist ein arbeitsfreier Tag!`]);
       return;
     }
 
@@ -164,7 +166,7 @@ export const useTimeTracking = (): [TimeTrackingState, TimeTrackingActions] => {
     setStartTime(start);
     setStatus('running');
     // Pausenzeiten nicht zurücksetzen, da sie bereits vordefiniert sind
-  }, [dayOfWeek, manualStart]);
+  }, [dayOfWeek, manualStart, workDays]);
 
   const pause = useCallback(() => {
     if (status === 'running') {

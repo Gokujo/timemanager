@@ -20,21 +20,23 @@ const PlanSelector: React.FC<PlanSelectorProps> = ({
       <h2 className="text-xl font-semibold text-white mb-2">Anwesenheitsplan</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {Object.keys(plans).map(planKey => (
-          <div
+          <button
             key={planKey}
-            className={`p-4 rounded-lg cursor-pointer ${
-              validPlan === planKey 
-                ? 'bg-blue-500 text-white' 
-                : 'bg-white/20 text-white'
-            }`}
+            type="button"
             onClick={() => onPlanChange(planKey)}
+            className={`text-left p-4 rounded-xl ring-1 transition-all shadow-sm ${
+              validPlan === planKey
+                ? 'bg-blue-600 text-white ring-blue-500 hover:bg-blue-700'
+                : 'bg-white/10 text-white ring-white/10 hover:bg-white/20'
+            }`}
+            data-ripple-light="true"
           >
             <p className="font-bold">{plans[planKey].name}</p>
             <p>
               {formatTimeFromMinutes(plans[planKey].start)} - {formatTimeFromMinutes(plans[planKey].end)} Uhr 
               (max. {formatTimeFromMinutes(plans[planKey].max)})
             </p>
-          </div>
+          </button>
         ))}
       </div>
     </div>

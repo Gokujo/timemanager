@@ -12,14 +12,20 @@ export const calculateWorkedTime = (
 
   const now = new Date();
   const elapsed = (now.getTime() - startTime.getTime()) / 1000 / 60;
-  const breakTime = breaks.reduce(
-    (sum, b) => b.start && b.end 
-      ? sum + (b.end.getTime() - b.start.getTime()) / 1000 / 60 
-      : sum, 
-    0
-  );
+  
+  // Calculate break time considering both duration and start/end times
+  const breakTime = breaks.reduce((sum, b) => {
+    if (b.start && b.end) {
+      // Use actual start/end time calculation
+      return sum + (b.end.getTime() - b.start.getTime()) / 1000 / 60;
+    } else if (b.duration) {
+      // Use duration value
+      return sum + b.duration;
+    }
+    return sum;
+  }, 0);
 
-  return elapsed - breakTime;
+  return Math.max(0, elapsed - breakTime);
 };
 
 /**

@@ -10,7 +10,7 @@ const Warnings: React.FC<WarningsProps> = ({ warnings }) => {
   }
 
   return (
-    <div className="p-4 bg-red-500/20 rounded-lg text-white">
+    <div className="p-4 rounded-xl text-white bg-red-600/20 ring-1 ring-red-500/30 shadow-sm">
       <h2 className="text-xl font-semibold mb-2">Warnungen</h2>
       <ul className="list-disc pl-5">
         {warnings.map((warning, index) => (

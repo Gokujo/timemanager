@@ -87,9 +87,10 @@ export const validateStartTime = (startTimeStr: string): ValidationResult => {
   const dayOfWeek = today.getDay();
   const workDays = getWorkDays();
 
-  // Check if it's a weekend or non-working day
-  if (dayOfWeek === 0 || dayOfWeek === 6 || workDays[dayOfWeek] === 0) {
-    warnings.push('Samstag und Sonntag sind arbeitsfrei!');
+  // Check if it's a non-working day based on user settings
+  if (workDays[dayOfWeek] === 0) {
+    const dayNames = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+    warnings.push(`${dayNames[dayOfWeek]} ist ein arbeitsfreier Tag!`);
     return { isValid: false, warnings };
   }
 

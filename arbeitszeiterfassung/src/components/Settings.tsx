@@ -29,7 +29,7 @@ const Settings: React.FC<SettingsProps> = ({
             type="time"
             value={manualStart}
             onChange={(e) => onManualStartChange(e.target.value)}
-            className="w-full p-2 rounded bg-white/20 text-white border border-white/30"
+            className="w-full rounded-lg bg-white/10 text-white placeholder-white/60 border border-white/20 px-3 py-2 outline-none focus:border-white/40 focus:ring-0"
             title="Tatsächlicher Arbeitsbeginn (HH:MM)"
           />
         </div>
@@ -44,7 +44,7 @@ const Settings: React.FC<SettingsProps> = ({
               const newValue = parseTimeInput(e.target.value);
               onPlannedWorkChange(newValue);
             }}
-            className="w-full p-2 rounded bg-white/20 text-white border border-white/30"
+            className="w-full rounded-lg bg-white/10 text-white placeholder-white/60 border border-white/20 px-3 py-2 outline-none focus:border-white/40 focus:ring-0"
             min={isHoursFormat ? formatTimeForDisplay(minWorkMinutes) : minWorkMinutes}
             title={`Geplante Arbeitszeit ${isHoursFormat ? 'in Stunden (HH:MM)' : 'in Minuten'}`}
           />

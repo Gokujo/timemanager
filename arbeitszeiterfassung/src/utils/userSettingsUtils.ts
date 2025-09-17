@@ -140,3 +140,70 @@ export const formatMinutesForDisplay = (minutes: number): string => {
   // Default to minutes format
   return `${Math.floor(minutes)}m`;
 };
+
+// Format minutes in a readable format (e.g., "8 Stunden 30 Minuten")
+export const formatMinutesReadable = (minutes: number): string => {
+  if (minutes <= 0) return '0 Minuten';
+  
+  const hours = Math.floor(minutes / 60);
+  const mins = Math.floor(minutes % 60);
+  
+  if (hours === 0) {
+    return `${mins} Minute${mins !== 1 ? 'n' : ''}`;
+  } else if (mins === 0) {
+    return `${hours} Stunde${hours !== 1 ? 'n' : ''}`;
+  } else {
+    return `${hours} Stunde${hours !== 1 ? 'n' : ''} ${mins} Minute${mins !== 1 ? 'n' : ''}`;
+  }
+};
+
+// Format minutes with seconds in a readable format
+export const formatMinutesWithSecondsReadable = (minutes: number): string => {
+  if (minutes <= 0) return '0 Minuten';
+  
+  const totalSeconds = Math.floor(minutes * 60);
+  const hours = Math.floor(totalSeconds / 3600);
+  const mins = Math.floor((totalSeconds % 3600) / 60);
+  const secs = totalSeconds % 60;
+  
+  let result = '';
+  
+  if (hours > 0) {
+    result += `${hours} Stunde${hours !== 1 ? 'n' : ''}`;
+  }
+  
+  if (mins > 0) {
+    if (result) result += ' ';
+    result += `${mins} Minute${mins !== 1 ? 'n' : ''}`;
+  }
+  
+  if (secs > 0 || (hours === 0 && mins === 0)) {
+    if (result) result += ' ';
+    result += `${secs} Sekunde${secs !== 1 ? 'n' : ''}`;
+  }
+  
+  return result || '0 Sekunden';
+};
+
+// Compact format like "8h 30m"
+export const formatMinutesCompact = (minutes: number): string => {
+  const totalMinutes = Math.max(0, Math.floor(minutes));
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  return `${hours}h ${mins}m`;
+};
+
+export const formatSecondsReadable = (minutes: number): string => {
+  const totalSeconds = Math.floor(minutes * 60);
+  const hours = Math.floor(totalSeconds / 3600);
+  const mins = Math.floor((totalSeconds % 3600) / 60);
+  const secs = totalSeconds % 60;
+
+  let result = '';
+  if (secs > 0 || (hours === 0 && mins === 0)) {
+    if (result) result += ' ';
+    result += `${secs} Sekunde${secs !== 1 ? 'n' : ''}`;
+  }
+  
+  return result || '0 Sekunden';
+}
