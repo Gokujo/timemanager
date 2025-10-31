@@ -140,12 +140,31 @@ jobs:
         if: steps.check-release.outputs.exists == 'false'
         run: npm run build
 
+      - name: Create ZIP archive
+        id: create-zip
+        if: steps.check-release.outputs.exists == 'false'
+        run: |
+          VERSION="${{ needs.check-release-branch.outputs.version }}"
+          ZIP_NAME="timemanager-v${VERSION}.zip"
+
+          # Erstelle ZIP-Datei aus dem dist/ Ordner
+          cd dist
+          zip -r "../${ZIP_NAME}" .
+          cd ..
+
+          # Setze den Pfad als Output
+          echo "zip_path=${ZIP_NAME}" >> $GITHUB_OUTPUT
+          echo "zip_name=${ZIP_NAME}" >> $GITHUB_OUTPUT
+          echo "✅ Created ZIP archive: ${ZIP_NAME}"
+
       - name: Prepare release body
         id: prepare-body
         if: steps.check-release.outputs.exists == 'false'
         run: |
           VERSION="${{ needs.check-release-branch.outputs.version }}"
           EVENT_NAME="${{ github.event_name }}"
+
+          ZIP_NAME="timemanager-v${VERSION}.zip"
 
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             BRANCH="${{ github.head_ref || github.ref_name }}"
@@ -154,7 +173,7 @@ jobs:
           Manuell erstelltes Release vom Release-Branch.
 
           ### 📦 Build-Artefakte
-          - Production Build aus dem \`dist/\` Ordner
+          - **ZIP-Archiv**: \`${ZIP_NAME}\` (enthält den kompletten Inhalt des \`dist/\` Ordners)
           - Branch: \`${BRANCH}\`
 
           ### 🔗 Links
@@ -171,7 +190,7 @@ jobs:
           Automatisch erstelltes Release nach Merge des Release-Branches.
 
           ### 📦 Build-Artefakte
-          - Production Build aus dem \`dist/\` Ordner
+          - **ZIP-Archiv**: \`${ZIP_NAME}\` (enthält den kompletten Inhalt des \`dist/\` Ordners)
           - Gemerged aus Branch: \`${BRANCH}\`
 
           ### 🔗 Links
@@ -199,9 +218,8 @@ jobs:
           tag_name: v${{ needs.check-release-branch.outputs.version }}
           name: Release v${{ needs.check-release-branch.outputs.version }}
           body: ${{ steps.prepare-body.outputs.body }}
-
           files: |
-            dist/**
+            ${{ steps.create-zip.outputs.zip_name }}
           draft: false
           prerelease: false
         env:
@@ -221,6 +239,9 @@ jobs:
           fi
           if [ "${{ steps.build.outcome }}" = "failure" ]; then
             ERROR_STEPS="${ERROR_STEPS}• Build fehlgeschlagen\n"
+          fi
+          if [ "${{ steps.create-zip.outcome }}" = "failure" ]; then
+            ERROR_STEPS="${ERROR_STEPS}• ZIP-Archiv-Erstellung fehlgeschlagen\n"
           fi
           if [ "${{ steps.create-release.outcome }}" = "failure" ]; then
             ERROR_STEPS="${ERROR_STEPS}• Release-Erstellung fehlgeschlagen\n"
