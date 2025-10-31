@@ -1,0 +1,245 @@
+name: Create Release
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+  workflow_dispatch:
+
+# Ignore Dependabot actions
+jobs:
+  check-release-branch:
+    name: Check Release Branch
+    runs-on: ubuntu-latest
+    outputs:
+      is-dependabot: ${{ steps.check-dependabot.outputs.is-dependabot }}
+      is-release-branch: ${{ steps.check-branch.outputs.is-release-branch }}
+      version: ${{ steps.extract-version.outputs.version }}
+    steps:
+      - name: Check if triggered by Dependabot
+        id: check-dependabot
+        run: |
+          ACTOR="${{ github.actor }}"
+          PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+
+          if [ "$ACTOR" = "dependabot[bot]" ] || [ "$PR_AUTHOR" = "dependabot[bot]" ]; then
+            echo "is-dependabot=true" >> $GITHUB_OUTPUT
+            echo "Skipping release creation - triggered by Dependabot"
+          else
+            echo "is-dependabot=false" >> $GITHUB_OUTPUT
+            echo "Not triggered by Dependabot, checking branch..."
+          fi
+
+      - name: Check if release branch
+        id: check-branch
+        run: |
+          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+
+          if [[ "$BRANCH_NAME" =~ ^releases/v ]]; then
+            echo "is-release-branch=true" >> $GITHUB_OUTPUT
+            echo "Release branch detected: $BRANCH_NAME"
+          else
+            echo "is-release-branch=false" >> $GITHUB_OUTPUT
+            echo "Not a release branch: $BRANCH_NAME"
+          fi
+
+      - name: Extract version from branch name
+        id: extract-version
+        if: steps.check-branch.outputs.is-release-branch == 'true'
+        run: |
+          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+          # Extract version from releases/v0.2.4 -> 0.2.4
+          VERSION=$(echo "$BRANCH_NAME" | sed 's/^releases\/v//')
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Extracted version: ${VERSION}"
+
+  create-release:
+    name: Create Release
+    needs: check-release-branch
+    if: |
+      needs.check-release-branch.outputs.is-dependabot == 'false' &&
+      needs.check-release-branch.outputs.is-release-branch == 'true' &&
+      github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Verify version from package.json
+        id: verify-version
+        run: |
+          PACKAGE_VERSION=$(npm pkg get version | tr -d '"')
+          BRANCH_VERSION="${{ needs.check-release-branch.outputs.version }}"
+
+          if [ "$PACKAGE_VERSION" != "$BRANCH_VERSION" ]; then
+            echo "❌ Version mismatch!"
+            echo "Package.json version: $PACKAGE_VERSION"
+            echo "Branch version: $BRANCH_VERSION"
+            exit 1
+          fi
+
+          echo "version=${PACKAGE_VERSION}" >> $GITHUB_OUTPUT
+          echo "✅ Version verified: ${PACKAGE_VERSION}"
+
+      - name: Check if release already exists
+        id: check-release
+        run: |
+          VERSION="${{ needs.check-release-branch.outputs.version }}"
+          if gh release view "v${VERSION}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Release v${VERSION} already exists, skipping..."
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Release v${VERSION} does not exist, will create..."
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        if: steps.check-release.outputs.exists == 'false'
+        run: npm ci
+
+      - name: Build application
+        id: build
+        if: steps.check-release.outputs.exists == 'false'
+        run: npm run build
+
+      - name: Create release
+        id: create-release
+        if: steps.check-release.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.check-release-branch.outputs.version }}
+          name: Release v${{ needs.check-release-branch.outputs.version }}
+          body: |
+            ## Version ${{ needs.check-release-branch.outputs.version }}
+
+            Automatisch erstelltes Release nach Merge des Release-Branches.
+
+            ### 📦 Build-Artefakte
+            - Production Build aus dem `dist/` Ordner
+            - Gemerged aus Branch: `${{ github.event.pull_request.head.ref }}`
+
+            ### 🔗 Links
+            - [Pull Request #${{ github.event.pull_request.number }}](${{ github.event.pull_request.html_url }})
+            - [Merge Commit: ${{ github.event.pull_request.merge_commit_sha }}](https://github.com/${{ github.repository }}/commit/${{ github.event.pull_request.merge_commit_sha }})
+            - **Merged by**: ${{ github.event.pull_request.merged_by.login }}
+
+            ### 📝 Änderungen
+            Siehe [Changelog](/CHANGELOG.md) für detaillierte Änderungen.
+
+            ### 📋 Pull Request Details
+            **Titel**: ${{ github.event.pull_request.title }}
+            **Beschreibung**: ${{ github.event.pull_request.body }}
+
+          files: |
+            dist/**
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Capture error details
+        if: failure() && steps.check-release.outputs.exists == 'false'
+        id: error-details
+        run: |
+          # Sammle Fehlerdetails aus den vorherigen Steps
+          ERROR_STEPS=""
+          if [ "${{ steps.verify-version.outcome }}" = "failure" ]; then
+            ERROR_STEPS="${ERROR_STEPS}• Versions-Validierung fehlgeschlagen\n"
+          fi
+          if [ "${{ steps.check-release.outcome }}" = "failure" ]; then
+            ERROR_STEPS="${ERROR_STEPS}• Release-Check fehlgeschlagen\n"
+          fi
+          if [ "${{ steps.build.outcome }}" = "failure" ]; then
+            ERROR_STEPS="${ERROR_STEPS}• Build fehlgeschlagen\n"
+          fi
+          if [ "${{ steps.create-release.outcome }}" = "failure" ]; then
+            ERROR_STEPS="${ERROR_STEPS}• Release-Erstellung fehlgeschlagen\n"
+          fi
+
+          ERROR_MSG=$(cat <<EOF
+          **Fehlerhafte Schritte:**
+          ${ERROR_STEPS:-"• Unbekannter Fehler"}
+
+          **Technische Details:**
+          - Workflow: ${{ github.workflow }}
+          - Job: ${{ github.job }}
+          - Run ID: ${{ github.run_id }}
+          EOF
+          )
+          echo "error_details<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$ERROR_MSG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Release created successfully
+        if: success() && steps.check-release.outputs.exists == 'false'
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TG_CHANNEL }}
+          token: ${{ secrets.TG_BOT }}
+          format: markdown
+          message: |
+            ✅ *Release v${{ needs.check-release-branch.outputs.version }} erfolgreich erstellt*
+
+            Das Release v${{ needs.check-release-branch.outputs.version }} wurde **erfolgreich** erstellt!
+
+            📦 **Version**: ${{ needs.check-release-branch.outputs.version }}
+            🔀 **Branch**: `${{ github.event.pull_request.head.ref }}`
+            📅 **Datum**: ${{ github.event.pull_request.merged_at }}
+            👤 **Merged by**: [${{ github.event.pull_request.merged_by.login }}](https://github.com/${{ github.event.pull_request.merged_by.login }})
+
+            **Pull Request**: [#${{ github.event.pull_request.number }}](${{ github.event.pull_request.html_url }})
+
+            🔗 [Release ansehen](https://github.com/${{ github.repository }}/releases/tag/v${{ needs.check-release-branch.outputs.version }})
+            🔍 [Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+        continue-on-error: true
+
+      - name: Release creation failed
+        if: failure() && steps.check-release.outputs.exists == 'false'
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TG_CHANNEL }}
+          token: ${{ secrets.TG_BOT }}
+          format: markdown
+          message: |
+            ❌ *Release-Erstellung fehlgeschlagen - v${{ needs.check-release-branch.outputs.version }}*
+
+            Die Release-Erstellung für v${{ needs.check-release-branch.outputs.version }} ist **fehlgeschlagen**!
+
+            📦 **Version**: ${{ needs.check-release-branch.outputs.version }}
+            🔀 **Branch**: `${{ github.event.pull_request.head.ref }}`
+            📅 **Datum**: ${{ github.event.pull_request.merged_at }}
+            👤 **Merged by**: [${{ github.event.pull_request.merged_by.login }}](https://github.com/${{ github.event.pull_request.merged_by.login }})
+
+            **Pull Request**: [#${{ github.event.pull_request.number }}](${{ github.event.pull_request.html_url }})
+
+            ### ❌ Fehlerdetails:
+            ${{ steps.error-details.outputs.error_details }}
+
+            ### 🔍 Weitere Informationen:
+            Bitte überprüfe die GitHub Actions Logs für detaillierte Fehlerinformationen.
+
+            🔍 [Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+        continue-on-error: true
+
+      - name: Release created
+        if: success() && steps.check-release.outputs.exists == 'false'
+        run: |
+          VERSION="${{ needs.check-release-branch.outputs.version }}"
+          echo "✅ Release v${VERSION} successfully created!"
+          echo "🔗 https://github.com/${{ github.repository }}/releases/tag/v${VERSION}"
