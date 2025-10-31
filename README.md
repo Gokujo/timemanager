@@ -51,18 +51,30 @@ Eine simple und moderne React-basierte Web-Anwendung zur exakten Erfassung von A
 
 ## 🔧 Installation
 
-### 1. Repository klonen
+### 1. Aus Quellcode
+
+#### 1. Repository klonen
 
 ```bash
 git clone <repository-url>
 cd arbeitszeiterfassung
 ```
 
-### 2. Dependencies installieren
+#### 2. Dependencies installieren
 
 ```bash
 npm install
 ```
+
+### 2. Fertigbuild benutzen
+
+#### 1. Release herunterladen
+
+Den [letzten Release](https://github.com/Gokujo/timemanager/releases/latest) herunterladen
+
+#### 2. Entpacken und nutzen
+
+Den Release entpacken und auf eigenen Server / Hosting hochladen
 
 ## 🎮 Entwicklung
 
@@ -88,7 +100,7 @@ Der Build wird im `dist/` Ordner erstellt.
 npm run preview
 ```
 
-Vorschau des Builds unter `http://localhost:3001`.
+Vorschau des Builds unter `http://localhost:3001`. Oder unter `https://time.maharder.de`.
 
 ## 🚀 Deployment
 
@@ -106,10 +118,10 @@ Die Anwendung wird automatisch auf dem FTP-Server bereitgestellt, wenn Änderung
 Jedes Deployment erhält eine eindeutige Versionsnummer im Format:
 
 ```
-major.minor.patch-buildNNN
+major.minor.patch-build-NNN
 ```
 
-Beispiel: `0.2.0-build123`
+Beispiel: `0.2.0-build-123`
 
 - **Semantische Version**: Aus `package.json`
 - **Build-Nummer**: GitHub Actions Run Number
