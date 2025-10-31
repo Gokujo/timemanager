@@ -22,20 +22,36 @@ jobs:
         id: check-dependabot
         run: |
           ACTOR="${{ github.actor }}"
-          PR_AUTHOR="${{ github.event.pull_request.user.login }}"
-
-          if [ "$ACTOR" = "dependabot[bot]" ] || [ "$PR_AUTHOR" = "dependabot[bot]" ]; then
-            echo "is-dependabot=true" >> $GITHUB_OUTPUT
-            echo "Skipping release creation - triggered by Dependabot"
+          # Bei workflow_dispatch gibt es keinen Pull Request
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ "$ACTOR" = "dependabot[bot]" ]; then
+              echo "is-dependabot=true" >> $GITHUB_OUTPUT
+              echo "Skipping release creation - triggered by Dependabot"
+            else
+              echo "is-dependabot=false" >> $GITHUB_OUTPUT
+              echo "Not triggered by Dependabot, checking branch..."
+            fi
           else
-            echo "is-dependabot=false" >> $GITHUB_OUTPUT
-            echo "Not triggered by Dependabot, checking branch..."
+            PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+            if [ "$ACTOR" = "dependabot[bot]" ] || [ "$PR_AUTHOR" = "dependabot[bot]" ]; then
+              echo "is-dependabot=true" >> $GITHUB_OUTPUT
+              echo "Skipping release creation - triggered by Dependabot"
+            else
+              echo "is-dependabot=false" >> $GITHUB_OUTPUT
+              echo "Not triggered by Dependabot, checking branch..."
+            fi
           fi
 
       - name: Check if release branch
         id: check-branch
         run: |
-          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+          # Bei workflow_dispatch: github.head_ref oder github.ref verwenden
+          # Bei pull_request: github.event.pull_request.head.ref verwenden
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
+          else
+            BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+          fi
 
           if [[ "$BRANCH_NAME" =~ ^releases/v ]]; then
             echo "is-release-branch=true" >> $GITHUB_OUTPUT
@@ -49,7 +65,13 @@ jobs:
         id: extract-version
         if: steps.check-branch.outputs.is-release-branch == 'true'
         run: |
-          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+          # Bei workflow_dispatch: github.head_ref oder github.ref_name verwenden
+          # Bei pull_request: github.event.pull_request.head.ref verwenden
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
+          else
+            BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+          fi
           # Extract version from releases/v0.2.4 -> 0.2.4
           VERSION=$(echo "$BRANCH_NAME" | sed 's/^releases\/v//')
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
@@ -61,7 +83,7 @@ jobs:
     if: |
       needs.check-release-branch.outputs.is-dependabot == 'false' &&
       needs.check-release-branch.outputs.is-release-branch == 'true' &&
-      github.event.pull_request.merged == true
+      (github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true)
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -70,7 +92,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || github.event.pull_request.merge_commit_sha }}
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -118,21 +140,43 @@ jobs:
         if: steps.check-release.outputs.exists == 'false'
         run: npm run build
 
-      - name: Create release
-        id: create-release
+      - name: Prepare release body
+        id: prepare-body
         if: steps.check-release.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ needs.check-release-branch.outputs.version }}
-          name: Release v${{ needs.check-release-branch.outputs.version }}
-          body: |
-            ## Version ${{ needs.check-release-branch.outputs.version }}
+        run: |
+          VERSION="${{ needs.check-release-branch.outputs.version }}"
+          EVENT_NAME="${{ github.event_name }}"
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            BRANCH="${{ github.head_ref || github.ref_name }}"
+            RELEASE_BODY=$(cat <<EOF
+            ## Version ${VERSION}
+
+            Manuell erstelltes Release vom Release-Branch.
+
+            ### 📦 Build-Artefakte
+            - Production Build aus dem \`dist/\` Ordner
+            - Branch: \`${BRANCH}\`
+
+            ### 🔗 Links
+            - [Workflow Run #${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - [Commit: ${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
+            - **Erstellt von**: ${{ github.actor }}
+
+            ### 📝 Änderungen
+            Siehe [Changelog](/CHANGELOG.md) für detaillierte Änderungen.
+            EOF
+            )
+          else
+            BRANCH="${{ github.event.pull_request.head.ref }}"
+            RELEASE_BODY=$(cat <<EOF
+            ## Version ${VERSION}
 
             Automatisch erstelltes Release nach Merge des Release-Branches.
 
             ### 📦 Build-Artefakte
-            - Production Build aus dem `dist/` Ordner
-            - Gemerged aus Branch: `${{ github.event.pull_request.head.ref }}`
+            - Production Build aus dem \`dist/\` Ordner
+            - Gemerged aus Branch: \`${BRANCH}\`
 
             ### 🔗 Links
             - [Pull Request #${{ github.event.pull_request.number }}](${{ github.event.pull_request.html_url }})
@@ -145,6 +189,22 @@ jobs:
             ### 📋 Pull Request Details
             **Titel**: ${{ github.event.pull_request.title }}
             **Beschreibung**: ${{ github.event.pull_request.body }}
+            EOF
+            )
+          fi
+
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          echo "$RELEASE_BODY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create release
+        id: create-release
+        if: steps.check-release.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.check-release-branch.outputs.version }}
+          name: Release v${{ needs.check-release-branch.outputs.version }}
+          body: ${{ steps.prepare-body.outputs.body }}
 
           files: |
             dist/**
@@ -199,11 +259,11 @@ jobs:
             Das Release v${{ needs.check-release-branch.outputs.version }} wurde **erfolgreich** erstellt!
 
             📦 **Version**: ${{ needs.check-release-branch.outputs.version }}
-            🔀 **Branch**: `${{ github.event.pull_request.head.ref }}`
-            📅 **Datum**: ${{ github.event.pull_request.merged_at }}
-            👤 **Merged by**: [${{ github.event.pull_request.merged_by.login }}](https://github.com/${{ github.event.pull_request.merged_by.login }})
+            🔀 **Branch**: `${{ github.event_name == 'workflow_dispatch' && (github.head_ref || github.ref_name) || github.event.pull_request.head.ref }}`
+            📅 **Datum**: ${{ github.event_name == 'workflow_dispatch' && github.event.head_commit.timestamp || github.event.pull_request.merged_at }}
+            👤 **${{ github.event_name == 'workflow_dispatch' && 'Erstellt von' || 'Merged by' }}**: [${{ github.event_name == 'workflow_dispatch' && github.actor || github.event.pull_request.merged_by.login }}](https://github.com/${{ github.event_name == 'workflow_dispatch' && github.actor || github.event.pull_request.merged_by.login }})
 
-            **Pull Request**: [#${{ github.event.pull_request.number }}](${{ github.event.pull_request.html_url }})
+            ${{ github.event_name != 'workflow_dispatch' && format('**Pull Request**: [#{0}]({1})', github.event.pull_request.number, github.event.pull_request.html_url) || format('**Workflow Run**: [{0}]({1})', github.run_id, format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id)) }}
 
             🔗 [Release ansehen](https://github.com/${{ github.repository }}/releases/tag/v${{ needs.check-release-branch.outputs.version }})
             🔍 [Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
@@ -222,11 +282,11 @@ jobs:
             Die Release-Erstellung für v${{ needs.check-release-branch.outputs.version }} ist **fehlgeschlagen**!
 
             📦 **Version**: ${{ needs.check-release-branch.outputs.version }}
-            🔀 **Branch**: `${{ github.event.pull_request.head.ref }}`
-            📅 **Datum**: ${{ github.event.pull_request.merged_at }}
-            👤 **Merged by**: [${{ github.event.pull_request.merged_by.login }}](https://github.com/${{ github.event.pull_request.merged_by.login }})
+            🔀 **Branch**: `${{ github.event_name == 'workflow_dispatch' && (github.head_ref || github.ref_name) || github.event.pull_request.head.ref }}`
+            📅 **Datum**: ${{ github.event_name == 'workflow_dispatch' && github.event.head_commit.timestamp || github.event.pull_request.merged_at }}
+            👤 **${{ github.event_name == 'workflow_dispatch' && 'Erstellt von' || 'Merged by' }}**: [${{ github.event_name == 'workflow_dispatch' && github.actor || github.event.pull_request.merged_by.login }}](https://github.com/${{ github.event_name == 'workflow_dispatch' && github.actor || github.event.pull_request.merged_by.login }})
 
-            **Pull Request**: [#${{ github.event.pull_request.number }}](${{ github.event.pull_request.html_url }})
+            ${{ github.event_name != 'workflow_dispatch' && format('**Pull Request**: [#{0}]({1})', github.event.pull_request.number, github.event.pull_request.html_url) || format('**Workflow Run**: [{0}]({1})', github.run_id, format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id)) }}
 
             ### ❌ Fehlerdetails:
             ${{ steps.error-details.outputs.error_details }}
