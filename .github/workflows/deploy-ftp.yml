@@ -41,7 +41,7 @@ jobs:
         run: |
           VERSION=$(npm pkg get version | tr -d '"')
           BUILD_NUMBER=${{ github.run_number }}
-          DEPLOY_VERSION="${VERSION}-build${BUILD_NUMBER}"
+          DEPLOY_VERSION="${VERSION}-build-${BUILD_NUMBER}"
           echo "version=${DEPLOY_VERSION}" >> $GITHUB_OUTPUT
           echo "Deploying version: ${DEPLOY_VERSION}"
 
