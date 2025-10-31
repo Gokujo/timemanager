@@ -149,48 +149,42 @@ jobs:
 
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             BRANCH="${{ github.head_ref || github.ref_name }}"
-            RELEASE_BODY=$(cat <<EOF
-            ## Version ${VERSION}
+            RELEASE_BODY="## Version ${VERSION}
 
-            Manuell erstelltes Release vom Release-Branch.
+          Manuell erstelltes Release vom Release-Branch.
 
-            ### 📦 Build-Artefakte
-            - Production Build aus dem \`dist/\` Ordner
-            - Branch: \`${BRANCH}\`
+          ### 📦 Build-Artefakte
+          - Production Build aus dem \`dist/\` Ordner
+          - Branch: \`${BRANCH}\`
 
-            ### 🔗 Links
-            - [Workflow Run #${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-            - [Commit: ${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
-            - **Erstellt von**: ${{ github.actor }}
+          ### 🔗 Links
+          - [Workflow Run #${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          - [Commit: ${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
+          - **Erstellt von**: ${{ github.actor }}
 
-            ### 📝 Änderungen
-            Siehe [Changelog](/CHANGELOG.md) für detaillierte Änderungen.
-            EOF
-            )
+          ### 📝 Änderungen
+          Siehe [Changelog](/CHANGELOG.md) für detaillierte Änderungen."
           else
             BRANCH="${{ github.event.pull_request.head.ref }}"
-            RELEASE_BODY=$(cat <<EOF
-            ## Version ${VERSION}
+            RELEASE_BODY="## Version ${VERSION}
 
-            Automatisch erstelltes Release nach Merge des Release-Branches.
+          Automatisch erstelltes Release nach Merge des Release-Branches.
 
-            ### 📦 Build-Artefakte
-            - Production Build aus dem \`dist/\` Ordner
-            - Gemerged aus Branch: \`${BRANCH}\`
+          ### 📦 Build-Artefakte
+          - Production Build aus dem \`dist/\` Ordner
+          - Gemerged aus Branch: \`${BRANCH}\`
 
-            ### 🔗 Links
-            - [Pull Request #${{ github.event.pull_request.number }}](${{ github.event.pull_request.html_url }})
-            - [Merge Commit: ${{ github.event.pull_request.merge_commit_sha }}](https://github.com/${{ github.repository }}/commit/${{ github.event.pull_request.merge_commit_sha }})
-            - **Merged by**: ${{ github.event.pull_request.merged_by.login }}
+          ### 🔗 Links
+          - [Pull Request #${{ github.event.pull_request.number }}](${{ github.event.pull_request.html_url }})
+          - [Merge Commit: ${{ github.event.pull_request.merge_commit_sha }}](https://github.com/${{ github.repository }}/commit/${{ github.event.pull_request.merge_commit_sha }})
+          - **Merged by**: ${{ github.event.pull_request.merged_by.login }}
 
-            ### 📝 Änderungen
-            Siehe [Changelog](/CHANGELOG.md) für detaillierte Änderungen.
+          ### 📝 Änderungen
+          Siehe [Changelog](/CHANGELOG.md) für detaillierte Änderungen.
 
-            ### 📋 Pull Request Details
-            **Titel**: ${{ github.event.pull_request.title }}
-            **Beschreibung**: ${{ github.event.pull_request.body }}
-            EOF
-            )
+          ### 📋 Pull Request Details
+          **Titel**: ${{ github.event.pull_request.title }}
+          **Beschreibung**: ${{ github.event.pull_request.body }}"
           fi
 
           echo "body<<EOF" >> $GITHUB_OUTPUT
