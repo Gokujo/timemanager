@@ -154,9 +154,9 @@ export const useTimeTracking = (): [TimeTrackingState, TimeTrackingActions] => {
     }
 
     const [hours, minutes] = manualStart.split(':').map(Number);
-    const start = new Date();
-    start.setHours(hours, minutes, 0, 0);
     const now = new Date();
+    // DST-Fix: Verwende Date-Konstruktor statt setHours() für korrekte Zeitzonen-Behandlung
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, 0, 0);
 
     if (start > now) {
       setWarnings(['Arbeitsbeginn darf nicht in der Zukunft liegt!']);
@@ -256,8 +256,8 @@ export const useTimeTracking = (): [TimeTrackingState, TimeTrackingActions] => {
 
     const newBreaks = [...breaks];
     const [hours, minutes] = value.split(':').map(Number);
-    const breakStart = new Date(startTime);
-    breakStart.setHours(hours, minutes, 0, 0);
+    // DST-Fix: Verwende Date-Konstruktor statt setHours() für korrekte Zeitzonen-Behandlung
+    const breakStart = new Date(startTime.getFullYear(), startTime.getMonth(), startTime.getDate(), hours, minutes, 0, 0);
     newBreaks[index].start = breakStart;
     
     // Automatische Berechnung der Pausendauer wenn Start- und Endzeit vorhanden sind
@@ -276,8 +276,8 @@ export const useTimeTracking = (): [TimeTrackingState, TimeTrackingActions] => {
 
     const newBreaks = [...breaks];
     const [hours, minutes] = value.split(':').map(Number);
-    const breakEnd = new Date(startTime);
-    breakEnd.setHours(hours, minutes, 0, 0);
+    // DST-Fix: Verwende Date-Konstruktor statt setHours() für korrekte Zeitzonen-Behandlung
+    const breakEnd = new Date(startTime.getFullYear(), startTime.getMonth(), startTime.getDate(), hours, minutes, 0, 0);
     newBreaks[index].end = breakEnd;
     
     // Automatische Berechnung der Pausendauer wenn Start- und Endzeit vorhanden sind

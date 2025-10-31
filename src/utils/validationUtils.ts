@@ -96,9 +96,9 @@ export const validateStartTime = (startTimeStr: string): ValidationResult => {
 
   // Check if start time is in the future
   const [hours, minutes] = startTimeStr.split(':').map(Number);
-  const startTime = new Date();
-  startTime.setHours(hours, minutes, 0, 0);
   const now = new Date();
+  // DST-Fix: Verwende Date-Konstruktor statt setHours() für korrekte Zeitzonen-Behandlung
+  const startTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, 0, 0);
 
   if (startTime > now) {
     warnings.push('Arbeitsbeginn darf nicht in der Zukunft liegen!');
