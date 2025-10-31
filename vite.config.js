@@ -1,5 +1,5 @@
 const react = require('@vitejs/plugin-react');
-const tailwindcss = require('tailwindcss');
+const tailwindcss = require('@tailwindcss/vite');
 /** @type {import('vite').UserConfig} */
 module.exports = {
     plugins: [react(), tailwindcss()],

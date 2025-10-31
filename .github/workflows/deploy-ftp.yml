@@ -29,44 +29,58 @@ jobs:
       - name: Check if triggered by Dependabot
         id: check
         run: |
+          # Bei manuellem Start (workflow_dispatch) immer erlauben
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "is-dependabot=false" >> $GITHUB_OUTPUT
+            echo "Manual workflow dispatch - allowing deployment"
+            exit 0
+          fi
+
           ACTOR="${{ github.actor }}"
           COMMIT_AUTHOR="${{ github.event.head_commit.author.name }}"
           COMMIT_MSG="${{ github.event.head_commit.message }}"
+          REF="${{ github.ref }}"
 
-          # Prüfe ob einer der letzten Commits von einem dependabot/* Branch stammt
-          # Merge-Commits enthalten oft den Branch-Namen in der Message
-          DEPENDABOT_BRANCH_FOUND=false
-
-          # Prüfe die letzten 10 Commits auf Merge-Commits von dependabot/* Branches
-          MERGE_COMMITS=$(git log --merges --oneline -10 --format="%s" | grep -iE "dependabot/|Merge.*dependabot" || true)
-          if [ -n "$MERGE_COMMITS" ]; then
-            DEPENDABOT_BRANCH_FOUND=true
-            echo "Found merge commit from dependabot branch"
+          # Prüfe ob es ein Release-Branch ist (releases/v*)
+          if [[ "$REF" =~ ^refs/heads/releases/v ]] || [[ "$REF" =~ ^refs/remotes/origin/releases/v ]]; then
+            echo "is-dependabot=false" >> $GITHUB_OUTPUT
+            echo "Release branch detected - allowing deployment"
+            exit 0
           fi
 
-          # Prüfe auch Commit-Messages auf dependabot/* Branch-Referenzen
-          if echo "$COMMIT_MSG" | grep -qiE "dependabot/[^[:space:]]+|Merge.*dependabot"; then
-            DEPENDABOT_BRANCH_FOUND=true
-            echo "Found dependabot branch reference in commit message"
-          fi
-
-          # Prüfe auf Dependabot-Actor, Commit-Autor, Commit-Message oder Branch-Name
-          if [ "$ACTOR" = "dependabot[bot]" ] || \
-             echo "$COMMIT_AUTHOR" | grep -qi "dependabot" || \
-             echo "$COMMIT_MSG" | grep -qiE "dependabot|bump.*version|update.*dependency|chore.*deps" || \
-             [ "$DEPENDABOT_BRANCH_FOUND" = "true" ]; then
+          # Prüfe nur den aktuellen Commit, nicht die Historie
+          # Prüfe auf Dependabot-Actor oder Commit-Autor
+          # Nur prüfen wenn es wirklich Dependabot ist, nicht nur wegen Commit-Message
+          if [ "$ACTOR" = "dependabot[bot]" ]; then
             echo "is-dependabot=true" >> $GITHUB_OUTPUT
             echo "Skipping deployment - triggered by Dependabot"
             echo "Actor: $ACTOR"
-            echo "Commit Author: $COMMIT_AUTHOR"
-            echo "Commit Message: $COMMIT_MSG"
-            if [ "$DEPENDABOT_BRANCH_FOUND" = "true" ]; then
-              echo "Dependabot branch merge detected"
-            fi
-          else
-            echo "is-dependabot=false" >> $GITHUB_OUTPUT
-            echo "Not triggered by Dependabot, proceeding with deployment"
+            exit 0
           fi
+
+          # Prüfe Commit-Autor nur wenn es wirklich Dependabot ist
+          if echo "$COMMIT_AUTHOR" | grep -qi "^dependabot\[bot\]$"; then
+            echo "is-dependabot=true" >> $GITHUB_OUTPUT
+            echo "Skipping deployment - commit author is Dependabot"
+            echo "Commit Author: $COMMIT_AUTHOR"
+            exit 0
+          fi
+
+          # Prüfe nur ob der aktuelle Commit direkt von Dependabot stammt
+          # Prüfe nur auf explizite Dependabot-Referenzen im aktuellen Commit
+          if echo "$COMMIT_MSG" | grep -qiE "^Merge.*dependabot/|^Bump.*from.*dependabot/|dependabot\[bot\]"; then
+            echo "is-dependabot=true" >> $GITHUB_OUTPUT
+            echo "Skipping deployment - commit message indicates Dependabot"
+            echo "Commit Message: $COMMIT_MSG"
+            exit 0
+          fi
+
+          # Kein Dependabot erkannt
+          echo "is-dependabot=false" >> $GITHUB_OUTPUT
+          echo "Not triggered by Dependabot, proceeding with deployment"
+          echo "Actor: $ACTOR"
+          echo "Commit Author: $COMMIT_AUTHOR"
+          echo "Ref: $REF"
 
   deploy:
     name: Build and Deploy
