@@ -1,4 +1,4 @@
-/* Анимация моргания для уведомления о паузе */
+/* Blink-Animation für Pausen-Benachrichtigung */
 @keyframes blink {
   0%,
   100% {
@@ -13,12 +13,12 @@
   animation: blink 1s ease-in-out infinite;
 }
 
-/* Поддержка prefers-reduced-motion для доступности */
+/* Unterstützung für prefers-reduced-motion für bessere Zugänglichkeit */
 @media (prefers-reduced-motion: reduce) {
   .blinking-text {
     animation: none;
     opacity: 1;
-    /* Альтернатива: тонкий статический подсвет */
+    /* Alternative: statischer, subtiler Hervorhebung */
     background-color: rgba(255, 255, 255, 0.1);
     border-radius: 4px;
     padding: 0.25rem 0.5rem;

@@ -1,22 +1,36 @@
 import { Break } from '../interfaces/break';
 
 /**
- * Определяет активную паузу из массива пауз на основе текущего времени
- * @param breaks - Массив пауз с временем начала и окончания
- * @param currentTime - Текущее время для проверки
- * @returns Активная пауза или null, если пауза не активна
+ * Ermittelt die aktive Pause aus einem Array von Pausen basierend auf der aktuellen Zeit
+ * @param breaks - Array von Pausen mit Start- und Endzeit
+ * @param currentTime - Aktuelle Zeit für die Prüfung
+ * @returns Aktive Pause oder null, falls keine Pause aktiv ist
  */
 export function getActiveBreak(breaks: Break[], currentTime: Date): Break | null {
-  // Проверяем каждую паузу на активность
+  // Prüfe jede Pause auf Aktivität
   for (const breakItem of breaks) {
-    // Пропускаем паузы без времени начала или окончания
+    // Überspringe Pausen ohne Start- oder Endzeit
     if (!breakItem.start || !breakItem.end) {
       continue;
     }
 
-    // Пауза активна, если текущее время >= времени начала и < времени окончания
-    if (currentTime >= breakItem.start && currentTime < breakItem.end) {
-      return breakItem;
+    // Ensure dates are Date objects
+    const start = breakItem.start instanceof Date ? breakItem.start : new Date(breakItem.start);
+    const end = breakItem.end instanceof Date ? breakItem.end : new Date(breakItem.end);
+
+    // Ensure dates are valid
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      continue;
+    }
+
+    // Pause ist aktiv, wenn aktuelle Zeit >= Startzeit und < Endzeit
+    // Compare timestamps to avoid timezone issues
+    if (currentTime.getTime() >= start.getTime() && currentTime.getTime() < end.getTime()) {
+      return {
+        ...breakItem,
+        start,
+        end
+      };
     }
   }
 
@@ -24,9 +38,9 @@ export function getActiveBreak(breaks: Break[], currentTime: Date): Break | null
 }
 
 /**
- * Определяет режим отображения на основе активной паузы
- * @param activeBreak - Активная пауза или null
- * @returns 'break' если есть активная пауза, 'work' в противном случае
+ * Ermittelt den Anzeigemodus basierend auf der aktiven Pause
+ * @param activeBreak - Aktive Pause oder null
+ * @returns 'break' wenn eine aktive Pause vorhanden ist, 'work' sonst
  */
 export function getDisplayMode(activeBreak: Break | null): 'work' | 'break' {
   return activeBreak ? 'break' : 'work';
