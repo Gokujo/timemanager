@@ -1,7 +1,9 @@
-const react = require('@vitejs/plugin-react');
-const tailwindcss = require('@tailwindcss/vite');
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+import { defineConfig } from 'vite';
+
 /** @type {import('vite').UserConfig} */
-module.exports = {
+export default defineConfig({
     plugins: [react(), tailwindcss()],
     server: {
         port: 3001
@@ -9,6 +11,4 @@ module.exports = {
     preview: {
         port: 3001
     }
-};
-
-
+});
