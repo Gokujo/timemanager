@@ -104,7 +104,7 @@ const AutoStopManager: React.FC<AutoStopManagerProps> = ({
     if (workTime.isOnBreak && currentEvent) {
       // Auto-stop should still occur even during breaks
       // This ensures ArbZG compliance
-      console.log('Auto-Stop während Pause:', currentEvent.reason);
+      // Logging removed for production - could be handled via errorUtils if needed
     }
   }, [workTime.isOnBreak, currentEvent]);
 

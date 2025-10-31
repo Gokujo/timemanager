@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { AutoStopUtils, WorkTimeData, WorkPlan, AutoStopResult } from '../utils/autoStopUtils';
 import { AutoStopEvent, AutoStopReason } from '../interfaces/autoStop';
 import { globalTimerManager } from '../utils/timerUtils';
+import { errorUtils } from '../utils/errorUtils';
 
 interface UseAutoStopOptions {
   workTime: WorkTimeData;
@@ -104,7 +105,14 @@ export function useAutoStop({
       }
 
     } catch (error) {
-      console.error('Fehler bei Auto-Stop-Prüfung:', error);
+      errorUtils.logError(error, {
+        context: 'Auto-Stop-Prüfung',
+        workTime: {
+          totalWorkTime: workTime.totalWorkTime,
+          totalBreakTime: workTime.totalBreakTime
+        },
+        plan: plan.name
+      });
     }
   }, [workTime, plan, overrideActive, onAutoStop, onWarning]);
 
@@ -145,7 +153,10 @@ export function useAutoStop({
       const result = await AutoStopUtils.acknowledgeAutoStopEvent(eventId);
       return result.success;
     } catch (error) {
-      console.error('Fehler beim Bestätigen des Events:', error);
+      errorUtils.logError(error, {
+        context: 'Auto-Stop Event Bestätigung',
+        eventId
+      });
       return false;
     }
   }, []);

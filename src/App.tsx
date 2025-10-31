@@ -2,6 +2,7 @@ import React from 'react';
 import {BrowserRouter as Router, Link, Route, Routes} from 'react-router-dom';
 import './index.css';
 import './styles/status.css';
+import './styles/breakNotification.css';
 
 // Components
 import Header from './components/Header';

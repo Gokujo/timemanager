@@ -1,8 +1,11 @@
-import React, {useCallback} from 'react';
+import React, {useCallback, useMemo} from 'react';
 import {getWorkDays} from '../constants/workDays';
 import {calculateEndTime} from '../utils/timeUtils';
 import {useTimeTracking} from '../hooks/useTimeTracking';
 import {openTimePopup} from '../utils/popupUtils';
+import {useOverride} from '../hooks/useOverride';
+import {WorkTimeData, WorkPlan} from '../utils/autoStopUtils';
+import {getPlans} from '../constants/plans';
 
 // Components
 import Settings from './Settings';
@@ -11,6 +14,8 @@ import PlanSelector from './PlanSelector';
 import Controls from './Controls';
 import BreakManager from './BreakManager';
 import Warnings from './Warnings';
+import AutoStopManager from './AutoStopManager';
+import OverrideToggle from './OverrideToggle';
 
 const HomePage: React.FC = () => {
     // Get current day's minimum work minutes from user settings
@@ -21,6 +26,57 @@ const HomePage: React.FC = () => {
 
     // Use the time tracking hook
     const [state, actions] = useTimeTracking();
+
+    // Calculate total break time
+    const totalBreakTime = useMemo(() => {
+        return state.breaks.reduce((sum, b) => {
+            if (b.start && b.end) {
+                return sum + (b.end.getTime() - b.start.getTime()) / 1000 / 60;
+            } else if (b.duration) {
+                return sum + b.duration;
+            }
+            return sum;
+        }, 0);
+    }, [state.breaks]);
+
+    // Prepare work time data for AutoStopManager
+    const workTimeData: WorkTimeData = useMemo(() => ({
+        startTime: state.startTime || new Date(),
+        endTime: state.status === 'stopped' ? new Date() : null,
+        breaks: state.breaks.filter(b => b.start && b.end).map(b => ({
+            start: b.start!,
+            end: b.end!
+        })),
+        totalWorkTime: state.workedMinutes,
+        totalBreakTime: totalBreakTime,
+        isOnBreak: state.status === 'paused'
+    }), [state.startTime, state.status, state.breaks, state.workedMinutes, totalBreakTime]);
+
+    // Get current plan for AutoStopManager
+    const plans = getPlans();
+    const currentPlan = plans[state.plan];
+    // Map Plan interface to WorkPlan interface
+    // maxPresenceTime = max + 1 hour buffer, maxWorkTime = max
+    const workPlan: WorkPlan | null = currentPlan ? {
+        name: currentPlan.name,
+        maxPresenceTime: currentPlan.max + 60, // Add 1 hour buffer for presence time
+        maxWorkTime: currentPlan.max
+    } : null;
+
+    // Use override hook
+    const {
+        isOverrideActive
+    } = useOverride({
+        workTime: { isOnBreak: state.status === 'paused' },
+        onOverrideChange: undefined
+    });
+
+    // Handle work time stop from AutoStopManager
+    const handleWorkTimeStop = useCallback(() => {
+        if (state.status === 'running' || state.status === 'paused') {
+            actions.stop();
+        }
+    }, [state.status, actions]);
 
     // Calculate end time
     const endTime = useCallback(() => {
@@ -81,6 +137,8 @@ const HomePage: React.FC = () => {
                     workedMinutes={state.workedMinutes}
                     plannedWork={state.plannedWork}
                     endTime={endTime()}
+                    breaks={state.breaks}
+                    startTime={state.startTime}
                 />
                 <div className="flex justify-center mt-2">
                     <button
@@ -115,6 +173,25 @@ const HomePage: React.FC = () => {
                 onUpdateBreakEnd={actions.updateBreakEnd}
                 onUpdateBreakDuration={actions.updateBreakDuration}
             />
+
+            {/* Override Toggle - Show only when work is active */}
+            {state.status === 'running' && workPlan && (
+                <OverrideToggle
+                    workTime={{ isOnBreak: false }}
+                    className="mb-4"
+                />
+            )}
+
+            {/* Auto Stop Manager - Show only when work is active and plan exists */}
+            {state.status === 'running' && workPlan && state.startTime && (
+                <AutoStopManager
+                    workTime={workTimeData}
+                    plan={workPlan}
+                    overrideActive={isOverrideActive}
+                    onWorkTimeStop={handleWorkTimeStop}
+                    className="mb-4"
+                />
+            )}
 
             <Warnings warnings={state.warnings}/>
 
