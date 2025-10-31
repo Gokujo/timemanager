@@ -7,6 +7,31 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.2.4] - 2025-10-31
+
+### Added
+
+- GitHub Actions Workflow für automatisches FTP-Deployment hinzugefügt (.github/workflows/deploy-ftp.yml)
+- Automatische Deployment-Pipeline: Build und Upload bei jedem Merge in main Branch
+- Version-Generierung mit semantischer Versionierung + Build-Nummer
+- Telegram-Benachrichtigungen für erfolgreiche und fehlgeschlagene Deployments
+- GitHub Repository-Link im Footer hinzugefügt
+- Automatische Deployment-Dokumentation im README hinzugefügt
+- Concurrency-Control für Deployment-Workflows (cancelt in-progress deployments)
+- Datei-Erhaltung während Deployment (.well-known und .htaccess bleiben erhalten)
+- Deployment-Status-Badge im README
+
+### Changed
+
+- Footer-Komponente verwendet jetzt die zentrale Footer-Komponente statt Inline-Code
+- Version im Footer und Changelog synchronisiert
+- App.tsx verwendet jetzt Footer-Komponente aus components/
+
+### Fixed
+
+- Version im Footer korrekt auf v0.2.4 aktualisiert
+- Changelog enthält jetzt alle Versionen inklusive v0.2.2
+
 ## [0.2.3] - 2025-10-28
 
 ### Added
@@ -47,7 +72,7 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Performance-Monitoring und Bundle-Size-Optimierung implementiert
 - Gemeinsame Utility-Funktionen für Zeitberechnungen und Validierung erstellt
 - Umfassende Fehlerbehandlung mit deutschen Fehlermeldungen hinzugefügt
-- Footer-Navigation mit direktem Link zur Startzeit hinzugefügt
+- Footer-Navigation mit direktem Link zur Startseite hinzugefügt
 - 404-Fehlerseite (NotFoundPage) für ungültige URLs implementiert
 - Automatische Arbeitszeit-Stoppung bei maximalen Grenzen (ArbZG-konform)
 - Umgehungsoption für maximale Arbeitszeit mit rechtlichen Warnungen
@@ -71,7 +96,7 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Arbeitszeitschutzgesetz-Validierung optimiert und konsolidiert
 - App.tsx mit React Router DOM BrowserRouter konfiguriert
 - HomePage mit AutoStopManager und OverrideToggle erweitert
-- Footer-Komponente mit Startzeit-Link und Accessibility-Features
+- Footer-Komponente mit Startseite-Link und Accessibility-Features
 - Routing-System für direkte URL-Zugriffe ohne 404-Fehler
 - ArbZG-Compliance-Validierung für 10h max Arbeitszeit implementiert
 - Pausenregelungen (30min nach 6h, 45min nach 9h) automatisch überwacht

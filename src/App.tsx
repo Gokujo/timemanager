@@ -5,6 +5,7 @@ import './styles/status.css';
 
 // Components
 import Header from './components/Header';
+import Footer from './components/Footer';
 
 // Pages
 import Impressum from './pages/Impressum';
@@ -13,6 +14,7 @@ import Nutzungsbedingungen from './pages/Nutzungsbedingungen';
 import Benutzereinstellungen from './pages/Benutzereinstellungen';
 import PopupPage from './pages/PopupPage';
 import Changelog from './pages/Changelog';
+import NotFoundPage from './components/NotFoundPage';
 
 import HomePage from './components/HomePage';
 
@@ -31,47 +33,10 @@ const App: React.FC = () => {
                         <Route path="/nutzungsbedingungen" element={<Nutzungsbedingungen/>}/>
                         <Route path="/popup" element={<PopupPage/>}/>
                         <Route path="/changelog" element={<Changelog/>}/>
+                        <Route path="*" element={<NotFoundPage/>}/>
                     </Routes>
 
-                    <div className="mt-8 pt-6 border-t border-white/20">
-                        <div className="flex flex-wrap justify-center gap-4 text-sm">
-                            <Link
-                                to="/einstellungen"
-                                className="text-white/70 hover:text-white transition-colors"
-                            >
-                                Einstellungen
-                            </Link>
-                            <span className="text-white/50">•</span>
-                            <Link
-                                to="/impressum"
-                                className="text-white/70 hover:text-white transition-colors"
-                            >
-                                Impressum
-                            </Link>
-                            <span className="text-white/50">•</span>
-                            <Link
-                                to="/datenschutz"
-                                className="text-white/70 hover:text-white transition-colors"
-                            >
-                                Datenschutz
-                            </Link>
-                            <span className="text-white/50">•</span>
-                            <Link
-                                to="/nutzungsbedingungen"
-                                className="text-white/70 hover:text-white transition-colors"
-                            >
-                                Nutzungsbedingungen
-                            </Link>
-                            <span className="text-white/50">•</span>
-                                <Link
-                                    to="/changelog"
-                                    className="text-white/70 hover:text-white transition-colors"
-                                    data-ripple-light="true"
-                                >
-                                    v0.2.1
-                                </Link>
-                        </div>
-                    </div>
+                    <Footer />
                 </div>
             </div>
         </Router>

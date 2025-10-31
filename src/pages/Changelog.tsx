@@ -15,6 +15,93 @@ const Changelog: React.FC = () => {
   const versions = useMemo<VersionEntry[]>(
     () => [
       {
+        version: 'v0.2.4',
+        date: '31.10.2025',
+        sections: [
+          {
+            title: 'Neu',
+            items: [
+              'GitHub Repository-Link im Footer hinzugefügt - direkt zum Quellcode.'
+            ]
+          },
+          { 
+            title: 'Geändert', 
+            items: []
+          },
+          { 
+            title: 'Behoben', 
+            items: [
+              'Version im Footer korrekt angezeigt.',
+              'Changelog zeigt jetzt alle Versionen vollständig an.'
+            ]
+          }
+        ]
+      },
+      {
+        version: 'v0.2.3',
+        date: '28.10.2025',
+        sections: [
+          {
+            title: 'Neu',
+            items: [
+              'Echtzeit-Pausen-Benachrichtigung: Anzeige wechselt automatisch zu "Pause bis XX:XX" wenn Pausenzeit eintrifft.',
+              'Blinkende Animation für aktive Pausen zur visuellen Aufmerksamkeit.',
+              'Intelligente Pausenzeiten-Berechnung: Nur tatsächlich stattfindende Pausen werden von der Arbeitszeit abgezogen.'
+            ]
+          },
+          { 
+            title: 'Geändert', 
+            items: [
+              'Arbeitszeitberechnung berücksichtigt jetzt nur aktive Pausen.',
+              '"Vorauss. Arbeitsende" bleibt von Pausenstatus unberührt und zeigt korrekte Zeit.'
+            ]
+          },
+          { 
+            title: 'Behoben', 
+            items: [
+              'Zeitanzeige ist jetzt korrekt über DST-Übergänge hinweg (Winter-/Sommerzeit).',
+              'Bug behoben: Falsche Zeitberechnung (z.B. 23m statt 67min bei 1h 7min Arbeitszeit).'
+            ]
+          }
+        ]
+      },
+      {
+        version: 'v0.2.2',
+        date: '17.10.2025',
+        sections: [
+          {
+            title: 'Neu',
+            items: [
+              '8-Stunden-Standardarbeitszeit für alle Werktage als Standardwert eingeführt.',
+              'Footer-Navigation mit direktem Link zur Startseite hinzugefügt.',
+              '404-Fehlerseite für ungültige URLs.',
+              'Automatische Arbeitszeit-Stoppung bei maximalen Grenzen (ArbZG-konform).',
+              'Umgehungsoption für maximale Arbeitszeit mit rechtlichen Warnungen.',
+              'Verbesserte Fehlermeldungen auf Deutsch.'
+            ]
+          },
+          { 
+            title: 'Geändert', 
+            items: [
+              'Deutsche Sprachkonsistenz durchgängig sichergestellt.',
+              'Verbesserte Navigation zwischen Seiten.',
+              'Footer mit Startseite-Link und besseren Accessibility-Features.',
+              'Direkte URL-Zugriffe funktionieren jetzt ohne Fehler.'
+            ]
+          },
+          { 
+            title: 'Behoben', 
+            items: [
+              'Deutsche Singular-/Plural-Formen in Zeitformatierung korrigiert.',
+              '404-Fehler bei direktem Aufruf von URLs behoben.',
+              'Navigation zwischen Seiten ohne Verlust der Arbeitszeit-Daten.',
+              'Automatische Stoppung respektiert jetzt ArbZG-Grenzen korrekt.',
+              'Schnellere Ladezeiten und bessere Performance.'
+            ]
+          }
+        ]
+      },
+      {
         version: 'v0.2.1',
         date: '17.09.2025',
         sections: [
