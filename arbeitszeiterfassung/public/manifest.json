@@ -1,0 +1,29 @@
+{
+  "short_name": "Arbeitszeiterfassung",
+  "name": "Arbeitszeiterfassung Online - Kostenloser Zeiterfassung Timetracker",
+  "description": "Professionelle Arbeitszeiterfassung online. Kostenloser Timetracker für Arbeitszeit, Pausenzeiten und Überstunden. Einfache Zeiterfassung ohne Anmeldung.",
+  "icons": [
+    {
+      "src": "favicon-32x32.png",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "android-chrome-192x192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "android-chrome-512x512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#3b82f6",
+  "background_color": "#1e40af",
+  "categories": ["productivity", "business", "utilities"],
+  "lang": "de-DE",
+  "orientation": "portrait-primary"
+}

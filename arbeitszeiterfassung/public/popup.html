@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arbeitszeit - Popup</title>
+    <link
+            href="https://fonts.googleapis.com/icon?family=Material+Icons"
+            rel="stylesheet"
+    />
+    <link
+            rel="stylesheet"
+            href="https://unpkg.com/@material-tailwind/html@latest/styles/material-tailwind.css"
+    />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #ea580c 0%, #dc2626 100%);
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            transition: background 0.5s ease;
+        }
+
+        /* Background variations based on work progress */
+        .bg-progress-0 {
+            background: linear-gradient(135deg, #7c2d12 0%, #991b1b 100%);
+        }
+
+        /* 0% - darkest orange */
+        .bg-progress-10 {
+            background: linear-gradient(135deg, #9a3412 0%, #b91c1c 100%);
+        }
+
+        .bg-progress-20 {
+            background: linear-gradient(135deg, #c2410c 0%, #dc2626 100%);
+        }
+
+        .bg-progress-30 {
+            background: linear-gradient(135deg, #ea580c 0%, #ef4444 100%);
+        }
+
+        .bg-progress-40 {
+            background: linear-gradient(135deg, #f97316 0%, #f87171 100%);
+        }
+
+        .bg-progress-50 {
+            background: linear-gradient(135deg, #fb923c 0%, #fca5a5 100%);
+        }
+
+        .bg-progress-60 {
+            background: linear-gradient(135deg, #fdba74 0%, #fecaca 100%);
+        }
+
+        .bg-progress-70 {
+            background: linear-gradient(135deg, #fed7aa 0%, #fde2e2 100%);
+        }
+
+        .bg-progress-70 * {
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        .bg-progress-80 {
+            background: linear-gradient(135deg, #ffedd5 0%, #fef2f2 100%);
+        }
+
+        .bg-progress-80 * {
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        .bg-progress-90 {
+            background: linear-gradient(135deg, #fff7ed 0%, #fefefe 100%);
+        }
+
+        .bg-progress-90 * {
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        .bg-progress-100 {
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+        }
+
+        /* 100% - blue gradient */
+
+        /* Overtime green variations - darker green for more overtime */
+        .bg-overtime-1 {
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); /* 1-2h overtime - lightest green */
+        }
+
+        .bg-overtime-1 * {
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        .bg-overtime-2 {
+            background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+        }
+
+        .bg-overtime-2 * {
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        .bg-overtime-3 {
+            background: linear-gradient(135deg, #bbf7d0 0%, #86efac 100%);
+        }
+
+        .bg-overtime-4 {
+            background: linear-gradient(135deg, #86efac 0%, #4ade80 100%);
+        }
+
+        .bg-overtime-5 {
+            background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+        }
+
+        .bg-overtime-6 {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+        }
+
+        .bg-overtime-7 {
+            background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+        }
+
+        .bg-overtime-8 {
+            background: linear-gradient(135deg, #15803d 0%, #166534 100%);
+        }
+
+        .bg-overtime-9 {
+            background: linear-gradient(135deg, #166534 0%, #14532d 100%);
+        }
+
+        .bg-overtime-10 {
+            background: linear-gradient(135deg, #14532d 0%, #052e16 100%);
+        }
+
+        /* 10h+ overtime - darkest green */
+
+        /* Exceeded overtime - red warning */
+        .bg-overtime-exceeded {
+            background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%); /* red-200 */
+            color: #7f1d1d !important; /* red-900 */
+        }
+
+        .bg-overtime-exceeded * {
+            color: #7f1d1d !important;
+        }
+
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+
+        .card {
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #mainDisplay {
+            width: 100vw;
+            height: 96vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+			margin: 1rem;
+        }
+
+        #mainTime {
+            font-size: 35vw;
+            line-height: 0.9;
+        }
+        
+        .button {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.625rem 1rem;
+            border-radius: 0.5rem;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-weight: 600;
+            font-size: 0.875rem;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        }
+
+        .button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .status-green {
+            background: rgba(34, 197, 94, 0.8);
+        }
+
+        .status-yellow {
+            background: rgba(234, 179, 8, 0.8);
+        }
+
+        .status-red {
+            background: rgba(239, 68, 68, 0.8);
+        }
+		.text-uppercase {
+			text-transform: uppercase;
+		}
+    </style>
+</head>
+<body>
+
+
+<!-- Hauptanzeige - Geleistete Arbeitszeit -->
+<div id="mainDisplay" class="card cursor-pointer bg-gradient-to-br from-blue-500/20 to-purple-600/20 hover:bg-white/80 transition-colors" data-ripple-light="true">
+    <p id="mainLabel" class="text-lg text-white/80 mb-4 text-uppercase">Geleistete Arbeitszeit</p>
+    <p id="mainTime" class="font-bold text-indigo-500 mb-4">00:00</p>
+    <p class="text-sm text-white/60 text-uppercase">Klicken für verbleibende Zeit</p>
+</div>
+
+<!-- Details - Verbleibende Zeit und Arbeitsende -->
+<div id="details" class="absolute inset-0 flex flex-col items-center justify-center space-y-8" style="display: none;">
+    <div class="card p-6">
+        <p id="remainingLabel" class="text-lg text-white/80 mb-2">Verbleibende Zeit</p>
+        <p id="remainingTime" class="font-bold text-white" style="font-size: 8vw;">00:00</p>
+    </div>
+
+    <div id="endTimeCard" class="card p-6" style="display: none;">
+        <p class="text-lg text-white/80 mb-2">Vorauss. Arbeitsende</p>
+        <p id="endTime" class="font-bold text-white" style="font-size: 8vw;">--:--</p>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<script src="https://unpkg.com/@material-tailwind/html@latest/scripts/ripple.js"></script>
+
+<script>
+    let workedMinutes = 0;
+    let plannedWork = 480;
+    let endTime = '';
+    let showDetails = false;
+    let showRemaining = false;
+    let updateInterval = null;
+    let breaks = [];
+    let maxAllowedOvertime = 120; // Maximum allowed overtime in minutes (2 hours)
+
+    // Calculate total break time in minutes
+    function calculateTotalBreakTime(breaks) {
+        return breaks.reduce((sum, b) => {
+            if (b.start && b.end) {
+                return sum + (b.end.getTime() - b.start.getTime()) / 1000 / 60;
+            }
+            return sum + (b.duration || 0);
+        }, 0);
+    }
+
+    // Calculate worked time accounting for breaks
+    function calculateWorkedTime(startTime, breaks, status) {
+        if (!startTime || status === 'stopped') return 0;
+
+        const now = new Date();
+        const elapsed = (now.getTime() - startTime.getTime()) / 1000 / 60;
+        const breakTime = calculateTotalBreakTime(breaks);
+
+        return Math.max(0, elapsed - breakTime);
+    }
+
+    // Load time tracking state from localStorage
+    function loadTimeTrackingState() {
+        try {
+            const savedState = localStorage.getItem('timeTrackingState');
+            if (savedState) {
+                const parsedState = JSON.parse(savedState);
+
+                // Check if the saved state is from today
+                const savedDate = parsedState.startTime ? new Date(parsedState.startTime).toDateString() : null;
+                const today = new Date().toDateString();
+
+                if (savedDate === today) {
+                    // Convert ISO strings back to Date objects
+                    return {
+                        ...parsedState,
+                        startTime: parsedState.startTime ? new Date(parsedState.startTime) : null,
+                        breaks: parsedState.breaks.map((b) => ({
+                            ...b,
+                            start: b.start ? new Date(b.start) : null,
+                            end: b.end ? new Date(b.end) : null
+                        }))
+                    };
+                }
+            }
+        } catch (error) {
+            console.error('Error loading state from localStorage:', error);
+        }
+        return null;
+    }
+
+    // Load all parameters from localStorage
+    function loadAllParams() {
+        const timeState = loadTimeTrackingState();
+
+        if (timeState) {
+            // Load all data from localStorage
+            workedMinutes = timeState.workedMinutes || 0;
+            plannedWork = timeState.plannedWork || 480;
+            breaks = timeState.breaks || [];
+            const startTime = timeState.startTime;
+            const status = timeState.status || 'stopped';
+
+            // Calculate end time if we have start time and status
+            if (startTime && status === 'running') {
+                const totalBreaks = calculateTotalBreakTime(breaks);
+                const totalMinutes = plannedWork + workedMinutes + totalBreaks;
+                const endTimeDate = new Date(startTime.getTime() + totalMinutes * 60 * 1000);
+                endTime = endTimeDate.toLocaleTimeString('de-DE', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            } else {
+                // Use endTime from localStorage or calculate from current state
+                endTime = timeState.endTime || '';
+            }
+
+            // Update every second if running
+            if (status === 'running' && startTime) {
+                updateInterval = setInterval(() => {
+                    // Calculate worked time accounting for breaks
+                    workedMinutes = Math.floor(calculateWorkedTime(startTime, breaks, status));
+                    updateDisplay();
+                }, 1000);
+            }
+        } else {
+            // Fallback to URL parameters if no localStorage data
+            const urlParams = new URLSearchParams(window.location.search);
+            workedMinutes = parseInt(urlParams.get('worked') || '0');
+            plannedWork = parseInt(urlParams.get('planned') || '480');
+            endTime = urlParams.get('endTime') || '';
+            breaks = [];
+        }
+    }
+
+    function formatMinutes(minutes) {
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+    }
+
+    // Update background based on work progress
+    function updateBackground() {
+        const overtimeMinutes = Math.max(0, workedMinutes - plannedWork);
+
+        // Remove all background classes
+        document.body.className = document.body.className.replace(/bg-(progress|overtime)-\d+/g, '');
+        document.body.classList.remove('bg-overtime-exceeded');
+
+        if (overtimeMinutes > 0) {
+            // Check if overtime exceeds allowed limit
+            if (overtimeMinutes > maxAllowedOvertime) {
+                document.body.classList.add('bg-overtime-exceeded');
+            } else {
+                // Use green gradient based on overtime hours
+                const overtimeHours = Math.ceil(overtimeMinutes / 60);
+                const overtimeClass = Math.min(10, Math.max(1, overtimeHours));
+                document.body.classList.add(`bg-overtime-${overtimeClass}`);
+            }
+        } else {
+            // Normal work progress - use orange gradient
+            const progress = Math.min(100, Math.max(0, (workedMinutes / plannedWork) * 100));
+            const progressClass = Math.floor(progress / 10) * 10;
+
+            if (progress >= 100) {
+                document.body.classList.add('bg-progress-100');
+            } else {
+                document.body.classList.add(`bg-progress-${progressClass}`);
+            }
+        }
+    }
+
+    function updateDisplay() {
+        const remainingMinutes = Math.max(0, plannedWork - workedMinutes);
+        const overtimeMinutes = Math.max(0, workedMinutes - plannedWork);
+        const hasOvertime = overtimeMinutes > 0;
+
+        // Update background based on work progress
+        updateBackground();
+
+        // Update main display
+        const mainLabel = document.getElementById('mainLabel');
+        const mainTime = document.getElementById('mainTime');
+
+        if (showRemaining) {
+            if (hasOvertime) {
+                mainLabel.textContent = 'Überstunden';
+                mainTime.textContent = formatMinutes(overtimeMinutes);
+            } else {
+                mainLabel.textContent = 'Verbleibende Arbeitszeit';
+                mainTime.textContent = formatMinutes(remainingMinutes);
+            }
+        } else {
+            mainLabel.textContent = 'Geleistete Arbeitszeit';
+            mainTime.textContent = formatMinutes(workedMinutes);
+        }
+
+        // Update details if shown
+        if (showDetails) {
+            const remainingLabel = document.getElementById('remainingLabel');
+            const remainingTime = document.getElementById('remainingTime');
+
+            if (hasOvertime) {
+                remainingLabel.textContent = 'Überstunden';
+                remainingTime.textContent = formatMinutes(overtimeMinutes);
+            } else {
+                remainingLabel.textContent = 'Verbleibende Zeit';
+                remainingTime.textContent = formatMinutes(remainingMinutes);
+            }
+
+            // Update end time
+            if (endTime) {
+                document.getElementById('endTime').textContent = endTime;
+                document.getElementById('endTimeCard').style.display = 'block';
+            }
+        }
+    }
+
+    function toggleMainDisplay() {
+        showRemaining = !showRemaining;
+        const mainDisplay = document.getElementById('mainDisplay');
+
+        if (showRemaining) {
+            mainDisplay.querySelector('p:last-child').textContent = 'Klicken für geleistete Zeit';
+        } else {
+            mainDisplay.querySelector('p:last-child').textContent = 'Klicken für verbleibende Zeit';
+        }
+        updateDisplay();
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function () {
+        loadAllParams();
+        updateDisplay();
+
+        // Add click handler
+        document.getElementById('mainDisplay').addEventListener('click', toggleMainDisplay);
+    });
+
+    // Cleanup on close
+    window.addEventListener('beforeunload', function () {
+        if (updateInterval) {
+            clearInterval(updateInterval);
+        }
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+name: Deploy to FTP
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '.github/**'
+      - 'README.md'
+      - 'LICENSE'
+      - '.gitignore'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-ftp
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    environment: FTP
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Generate deployment version
+        id: version
+        run: |
+          VERSION=$(npm pkg get version | tr -d '"')
+          BUILD_NUMBER=${{ github.run_number }}
+          DEPLOY_VERSION="${VERSION}-build${BUILD_NUMBER}"
+          echo "version=${DEPLOY_VERSION}" >> $GITHUB_OUTPUT
+          echo "Deploying version: ${DEPLOY_VERSION}"
+
+      - name: Deploy to FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./dist/
+          server-dir: /
+          dangerous-clean-slate: true
+          exclude: |
+            **/.well-known/**
+            **/.htaccess
+
+      - name: Deployment success
+        if: success()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TG_CHANNEL }}
+          token: ${{ secrets.TG_BOT }}
+          format: markdown
+          message: |
+            ✅ *Deployment ${{ steps.version.outputs.version }} erfolgreich - time.maharder.de*
+
+            Das Deployment ${{ steps.version.outputs.version }} auf time.maharder.de war **erfolgreich**!
+
+            📅 **Datum**: ${{ github.event.head_commit.timestamp }}
+            🔄 **Commit**: `${{ github.sha }}`
+            📝 **Nachricht**: ${{ github.event.head_commit.message }}
+            👤 **Autor**: [${{ github.event.head_commit.author.name }}](https://github.com/${{ github.event.head_commit.author.username }})
+
+            Alle Dateien wurden erfolgreich auf den FTP-Server hochgeladen.
+
+            🚀 [GitHub Actions](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+        continue-on-error: true
+
+      - name: Deployment failed
+        if: failure()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TG_CHANNEL }}
+          token: ${{ secrets.TG_BOT }}
+          format: markdown
+          message: |
+            ❌ *Deployment fehlgeschlagen - time.maharder.de*
+
+            Das Deployment auf time.maharder.de #${{ github.run_number }} ist **fehlgeschlagen**!
+
+            📅 **Datum**: ${{ github.event.head_commit.timestamp }}
+            🔄 **Commit**: `${{ github.sha }}`
+            📝 **Nachricht**: ${{ github.event.head_commit.message }}
+            👤 **Autor**: [${{ github.event.head_commit.author.name }}](https://github.com/${{ github.event.head_commit.author.username }})
+
+            Bitte überprüfe die GitHub Actions Logs für weitere Details.
+
+            🔍 [GitHub Actions](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+        continue-on-error: true

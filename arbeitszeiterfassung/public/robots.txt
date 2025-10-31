@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://time.maharder.de/sitemap.xml
+
+# Disallow popup pages
+Disallow: /popup.html
+
+# Allow all other pages
+Allow: /einstellungen
+Allow: /impressum
+Allow: /datenschutz
+Allow: /nutzungsbedingungen
+Allow: /changelog
