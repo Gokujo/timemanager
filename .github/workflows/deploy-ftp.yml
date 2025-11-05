@@ -125,7 +125,6 @@ jobs:
           dangerous-clean-slate: true
           exclude: |
             **/.well-known/**
-            **/.htaccess
 
       - name: Deployment success
         if: success()
