@@ -69,7 +69,7 @@ export const loadUserSettings = (): UserSettings => {
       return { ...defaultUserSettings, ...parsed };
     }
   } catch (error) {
-    console.error('Fehler beim Laden der Benutzereinstellungen:', error);
+    // Error loading user settings
   }
   return defaultUserSettings;
 };

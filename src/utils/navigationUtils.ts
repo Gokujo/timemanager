@@ -19,7 +19,6 @@ export class NavigationUtils {
     try {
       navigate('/', { replace: false });
     } catch (error) {
-      console.error('Fehler bei Navigation zur Startzeit:', error);
       // Fallback to window.location if React Router fails
       window.location.href = '/';
     }
@@ -38,7 +37,6 @@ export class NavigationUtils {
         state: state || {}
       });
     } catch (error) {
-      console.error('Fehler bei Navigation zur Startzeit mit State:', error);
       window.location.href = '/';
     }
   }
@@ -86,7 +84,7 @@ export class NavigationUtils {
         '/datenschutz': 'Datenschutz',
         '/impressum': 'Impressum',
         '/nutzungsbedingungen': 'Nutzungsbedingungen',
-        '/benutzereinstellungen': 'Benutzereinstellungen'
+        '/einstellungen': 'Benutzereinstellungen'
       };
       return labels[path];
     }
@@ -130,7 +128,8 @@ export class NavigationUtils {
       '/start': '/',
       '/home': '/',
       '/index': '/',
-      '/index.html': '/'
+      '/index.html': '/',
+      '/benutzereinstellungen': '/einstellungen'
     };
 
     if (redirects[pathname]) {

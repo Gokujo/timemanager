@@ -7,6 +7,51 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.2.5] - 2025-11-05
+
+### Added
+
+- Apache `.htaccess` Konfiguration für SPA-Routing in Produktion hinzugefügt
+- Vite Development Server `historyApiFallback` Konfiguration für direkte URL-Zugriffe im Entwicklungsmodus
+- Überlappungs-Validierung für Pausen hinzugefügt (`validateBreakOverlap` in `src/utils/validationUtils.ts`)
+- Erweiterte `getActiveBreak` Funktion: Wählt längste Pause bei mehreren aktiven Pausen
+- Integrationstests für Pausenzeit-Berechnung hinzugefügt (`tests/integration/pauseTimeCalculation.test.tsx`)
+- Unit Tests für Break-Utilities hinzugefügt (`tests/unit/breakUtils.test.ts`)
+- Unit Tests für Validation-Utilities hinzugefügt (`tests/unit/validationUtils.test.ts`)
+- Unit Tests für Time-Utilities erweitert (`tests/unit/timeUtils.test.ts`)
+- **Aktionsknöpfe bei aktiver Pause**: Button-States schalten automatisch um, wenn eine geplante Pause aktiv wird
+- Unit Tests für Controls-Komponente hinzugefügt (`tests/unit/controls.test.tsx`)
+- Unit Tests für useTimeTracking Hook erweitert (`tests/unit/useTimeTracking.test.ts`)
+- Integrationstests für Active Break Controls hinzugefügt (`tests/integration/activeBreakControls.test.tsx`)
+
+### Fixed
+
+- 404-Fehler bei direktem Aufruf von URLs behoben (z.B. `/datenschutz`, `/impressum`, `/einstellungen`)
+- Alle Routen sind jetzt via direkter URL-Zugriff erreichbar (SPA-Routing)
+- Server-Side Routing-Konfiguration für Apache-Server implementiert
+- Development Server unterstützt jetzt History API Fallback für Client-Side Routing
+- **Korrekte Pausenzeit-Berechnung**: Geplante Pausen (duration-only) werden nicht mehr im Voraus von der geleisteten Arbeitszeit abgezogen
+- **Arbeitszeit-Anzeige**: Geleistete Arbeitszeit zeigt sofort > 0 nach Start, auch mit geplanten Pausen
+- **Pausenzeit-Einfrieren**: Arbeitszeit wird während aktiver Pausen korrekt eingefroren
+- **Nur abgeschlossene Pausen**: Nur abgeschlossene Pausen (mit start/end) werden von der geleisteten Arbeitszeit abgezogen
+- **Überlappende Pausen**: System verhindert präventiv, dass mehrere Pausen zur gleichen Zeit geplant werden können
+- **Mehrere aktive Pausen**: Bei mehreren aktiven Pausen wird die längste Pause verwendet
+- **Aktionsknöpfe bei aktiver Pause**: "Pause"-Button wird ausgeblendet und "Fortsetzen"-Button wird aktiv, wenn eine geplante Pause aktiv wird
+- **Status-Indikator bei aktiver Pause**: Status-Indikator zeigt "Pausiert" (gelb), auch wenn der Status 'running' bleibt
+- **Resume-Handler für geplante Pausen**: Resume-Handler prüft zuerst auf aktive geplante Pause und beendet diese, bevor normale Resume-Logik verwendet wird
+
+### Changed
+
+- `calculateWorkedTime` Funktion in `src/utils/timeUtils.ts`: Entfernt Subtraktion von geplanten Pausen (duration-only)
+- `getActiveBreak` Funktion in `src/utils/breakUtils.ts`: Erweitert um Logik zur Auswahl der längsten aktiven Pause
+- `TimeDisplay` Komponente: Entfernt Subtraktion von geplanten Pausen (duration-only)
+- `useTimeTracking` Hook: Integriert Überlappungs-Validierung in `onAddBreak`, `onUpdateBreakStart`, und `onUpdateBreakEnd`
+- `Controls` Komponente: Erweitert um `breaks` und `startTime` Props, Button-States basieren jetzt auf aktiver Pause
+- `Controls` Komponente: Pause-Button wird ausgeblendet, Resume-Button wird aktiv, wenn eine geplante Pause aktiv ist
+- `Controls` Komponente: Status-Indikator zeigt "Pausiert" (gelb), wenn eine geplante Pause aktiv ist, auch wenn Status 'running' bleibt
+- `useTimeTracking` Hook: Resume-Handler erweitert um Logik zur Erkennung und Beendigung aktiver geplanter Pausen
+- `HomePage` Komponente: Übergibt `breaks` und `startTime` Props an Controls-Komponente
+
 ## [0.2.4] - 2025-10-31
 
 ### Added

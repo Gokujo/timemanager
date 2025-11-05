@@ -6,6 +6,7 @@ import { calculatePresenceTime, calculateTotalBreakTime } from "./timeUtils";
 export interface ValidationResult {
   isValid: boolean;
   warnings: string[];
+  errors?: string[];
 }
 
 /**
@@ -106,4 +107,63 @@ export const validateStartTime = (startTimeStr: string): ValidationResult => {
   }
 
   return { isValid: true, warnings };
+};
+
+/**
+ * Validates if a new break overlaps with existing breaks
+ * @param newBreak - The break to validate
+ * @param existingBreaks - Array of existing breaks
+ * @returns ValidationResult with isValid and errors
+ */
+export const validateBreakOverlap = (
+  newBreak: Break,
+  existingBreaks: Break[]
+): ValidationResult => {
+  const errors: string[] = [];
+
+  // Only breaks with start and end can overlap
+  if (!newBreak.start || !newBreak.end) {
+    return { isValid: true, warnings: [], errors: [] };
+  }
+
+  const newStart = newBreak.start instanceof Date ? newBreak.start : new Date(newBreak.start);
+  const newEnd = newBreak.end instanceof Date ? newBreak.end : new Date(newBreak.end);
+
+  // Check if dates are valid
+  if (isNaN(newStart.getTime()) || isNaN(newEnd.getTime())) {
+    return { isValid: true, warnings: [], errors: [] };
+  }
+
+  // Check overlap with all existing breaks
+  for (const existingBreak of existingBreaks) {
+    if (!existingBreak.start || !existingBreak.end) continue;
+
+    const existingStart = existingBreak.start instanceof Date
+      ? existingBreak.start
+      : new Date(existingBreak.start);
+    const existingEnd = existingBreak.end instanceof Date
+      ? existingBreak.end
+      : new Date(existingBreak.end);
+
+    // Check if dates are valid
+    if (isNaN(existingStart.getTime()) || isNaN(existingEnd.getTime())) continue;
+
+    // Overlap: newStart between existingStart and existingEnd (exclusive on end)
+    // or newEnd between existingStart and existingEnd (exclusive on start)
+    const overlaps = (newStart.getTime() >= existingStart.getTime() &&
+                     newStart.getTime() < existingEnd.getTime()) ||
+                    (newEnd.getTime() > existingStart.getTime() &&
+                     newEnd.getTime() <= existingEnd.getTime());
+
+    if (overlaps) {
+      errors.push(`Die Pause überlappt mit einer bestehenden Pause (${existingStart.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} - ${existingEnd.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })})`);
+      break;
+    }
+  }
+
+  return {
+    isValid: errors.length === 0,
+    warnings: [],
+    errors
+  };
 };

@@ -46,7 +46,7 @@ describe('Route Validation', () => {
       expect(NavigationUtils.getRouteLabel('/datenschutz')).toBe('Datenschutz');
       expect(NavigationUtils.getRouteLabel('/impressum')).toBe('Impressum');
       expect(NavigationUtils.getRouteLabel('/nutzungsbedingungen')).toBe('Nutzungsbedingungen');
-      expect(NavigationUtils.getRouteLabel('/benutzereinstellungen')).toBe('Benutzereinstellungen');
+      expect(NavigationUtils.getRouteLabel('/einstellungen')).toBe('Benutzereinstellungen');
     });
 
     it('should return fallback label for invalid routes', () => {
@@ -70,7 +70,8 @@ describe('Route Validation', () => {
         { from: '/start', to: '/' },
         { from: '/home', to: '/' },
         { from: '/index', to: '/' },
-        { from: '/index.html', to: '/' }
+        { from: '/index.html', to: '/' },
+        { from: '/benutzereinstellungen', to: '/einstellungen' }
       ];
 
       redirects.forEach(({ from, to }) => {

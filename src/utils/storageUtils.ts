@@ -182,7 +182,7 @@ export function clearAllAppData(): StorageResult<void> {
       try {
         window.localStorage.removeItem(key);
       } catch (error) {
-        console.warn(`Fehler beim Löschen von ${key}:`, error);
+        // Error deleting from storage
       }
     });
 

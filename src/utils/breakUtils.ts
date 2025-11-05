@@ -2,12 +2,15 @@ import { Break } from '../interfaces/break';
 
 /**
  * Ermittelt die aktive Pause aus einem Array von Pausen basierend auf der aktuellen Zeit
+ * Wenn mehrere Pausen aktiv sind, wird die längste Pause zurückgegeben (FR-010)
  * @param breaks - Array von Pausen mit Start- und Endzeit
  * @param currentTime - Aktuelle Zeit für die Prüfung
- * @returns Aktive Pause oder null, falls keine Pause aktiv ist
+ * @returns Aktive Pause oder null, falls keine Pause aktiv ist. Wenn mehrere aktiv sind, die längste.
  */
 export function getActiveBreak(breaks: Break[], currentTime: Date): Break | null {
-  // Prüfe jede Pause auf Aktivität
+  const activeBreaks: Break[] = [];
+
+  // Sammle alle aktiven Pausen
   for (const breakItem of breaks) {
     // Überspringe Pausen ohne Start- oder Endzeit
     if (!breakItem.start || !breakItem.end) {
@@ -26,15 +29,37 @@ export function getActiveBreak(breaks: Break[], currentTime: Date): Break | null
     // Pause ist aktiv, wenn aktuelle Zeit >= Startzeit und < Endzeit
     // Compare timestamps to avoid timezone issues
     if (currentTime.getTime() >= start.getTime() && currentTime.getTime() < end.getTime()) {
-      return {
+      activeBreaks.push({
         ...breakItem,
         start,
         end
-      };
+      });
     }
   }
 
-  return null;
+  // Wenn keine Pause aktiv ist, return null
+  if (activeBreaks.length === 0) {
+    return null;
+  }
+
+  // Wenn nur eine Pause aktiv ist, return diese
+  if (activeBreaks.length === 1) {
+    return activeBreaks[0];
+  }
+
+  // Wenn mehrere Pausen aktiv sind, wähle die längste (FR-010)
+  let longestBreak = activeBreaks[0];
+  let longestDuration = longestBreak.end!.getTime() - longestBreak.start!.getTime();
+
+  for (const activeBreak of activeBreaks) {
+    const duration = activeBreak.end!.getTime() - activeBreak.start!.getTime();
+    if (duration > longestDuration) {
+      longestBreak = activeBreak;
+      longestDuration = duration;
+    }
+  }
+
+  return longestBreak;
 }
 
 /**

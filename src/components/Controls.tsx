@@ -1,7 +1,11 @@
 import React from 'react';
+import { getActiveBreak } from '../utils/breakUtils';
+import { Break } from '../interfaces/break';
 
 interface ControlsProps {
     status: 'stopped' | 'running' | 'paused';
+    breaks: Break[];
+    startTime: Date | null;
     onStart: () => void;
     onPause: () => void;
     onResume: () => void;
@@ -10,26 +14,35 @@ interface ControlsProps {
 
 const Controls: React.FC<ControlsProps> = ({
                                                status,
+                                               breaks,
+                                               startTime,
                                                onStart,
                                                onPause,
                                                onResume,
                                                onStop
                                            }) => {
-    // Status color for the status indicator
-    const statusColor =
-        status === 'running'
-            ? 'status-green'
-            : status === 'paused'
-                ? 'status-yellow'
-                : 'status-red';
+    // Calculate active break (if any)
+    const currentTime = new Date();
+    const activeBreak = getActiveBreak(breaks, currentTime);
 
-    // Status text
-    const statusText =
-        status === 'running'
+    // Pause button: hidden when active break exists
+    const showPauseButton = status === 'running' && !activeBreak;
+
+    // Resume button: enabled when active break exists OR status is 'paused'
+    const resumeEnabled = status === 'paused' || activeBreak !== null;
+
+    // Status indicator: "Pausiert" when active break exists OR status is 'paused'
+    const statusText = activeBreak !== null || status === 'paused'
+        ? 'Pausiert'
+        : status === 'running'
             ? 'Laufend'
-            : status === 'paused'
-                ? 'Pausiert'
-                : 'Gestoppt';
+            : 'Gestoppt';
+
+    const statusColor = activeBreak !== null || status === 'paused'
+        ? 'status-yellow'
+        : status === 'running'
+            ? 'status-green'
+            : 'status-red';
 
     return (
         <div className="mb-6">
@@ -42,18 +55,20 @@ const Controls: React.FC<ControlsProps> = ({
                 >
                     <span className="w-5 h-5">▶</span> Start
                 </button>
-                <button
-                    className="middle inline-flex items-center gap-2 rounded-lg bg-yellow-600 py-2.5 px-4 text-center align-middle text-sm font-semibold text-white shadow-sm shadow-yellow-900/20 transition-all hover:bg-yellow-700 hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
-                    onClick={onPause}
-                    disabled={status !== 'running'}
-                    data-ripple-light="true"
-                >
-                    <span className="w-5 h-5">⏸</span> Pause
-                </button>
+                {showPauseButton && (
+                    <button
+                        className="middle inline-flex items-center gap-2 rounded-lg bg-yellow-600 py-2.5 px-4 text-center align-middle text-sm font-semibold text-white shadow-sm shadow-yellow-900/20 transition-all hover:bg-yellow-700 hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
+                        onClick={onPause}
+                        disabled={status !== 'running'}
+                        data-ripple-light="true"
+                    >
+                        <span className="w-5 h-5">⏸</span> Pause
+                    </button>
+                )}
                 <button
                     className="middle inline-flex items-center gap-2 rounded-lg bg-blue-600 py-2.5 px-4 text-center align-middle text-sm font-semibold text-white shadow-sm shadow-blue-900/20 transition-all hover:bg-blue-700 hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
                     onClick={onResume}
-                    disabled={status !== 'paused'}
+                    disabled={!resumeEnabled}
                     data-ripple-light="true"
                 >
                     <span className="w-5 h-5">▶</span> Fortsetzen

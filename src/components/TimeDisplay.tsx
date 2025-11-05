@@ -44,7 +44,9 @@ const TimeDisplay: React.FC<TimeDisplayProps> = ({
         // Calculate worked time in seconds
         let workedSeconds = elapsedSeconds;
         
-        // Subtract completed breaks
+        // Subtract completed breaks only
+        // Note: Planned breaks (duration-only, without start/end times) are NOT subtracted here.
+        // They should only be subtracted when they actually occur (have start/end times and are completed).
         validBreaks.forEach((b) => {
             if (b.start && b.end) {
                 const breakStart = b.start instanceof Date ? b.start : new Date(b.start);
@@ -59,12 +61,6 @@ const TimeDisplay: React.FC<TimeDisplayProps> = ({
                     workedSeconds -= (now.getTime() - breakStart.getTime()) / 1000;
                 }
             }
-        });
-        
-        // Subtract duration-based breaks
-        const durationBreaks = breaks.filter((b) => !b.start && !b.end && b.duration);
-        durationBreaks.forEach((b) => {
-            workedSeconds -= (b.duration || 0) * 60;
         });
         
         // Calculate remaining time in seconds

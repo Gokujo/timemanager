@@ -27,7 +27,6 @@ export class TimerManager {
    */
   setTimeout(callback: () => void, delay: number, key?: string): string {
     if (this.isCleanedUp) {
-      console.warn('TimerManager wurde bereits bereinigt, Timer wird nicht erstellt');
       return '';
     }
 
@@ -52,7 +51,6 @@ export class TimerManager {
    */
   setInterval(callback: () => void, delay: number, key?: string): string {
     if (this.isCleanedUp) {
-      console.warn('TimerManager wurde bereits bereinigt, Timer wird nicht erstellt');
       return '';
     }
 
@@ -74,7 +72,6 @@ export class TimerManager {
    */
   requestAnimationFrame(callback: () => void, key?: string): string {
     if (this.isCleanedUp) {
-      console.warn('TimerManager wurde bereits bereinigt, Timer wird nicht erstellt');
       return '';
     }
 
@@ -116,7 +113,7 @@ export class TimerManager {
           break;
       }
     } catch (error) {
-      console.warn(`Fehler beim Löschen des Timers ${key}:`, error);
+      // Error deleting timer
     }
 
     this.timers.delete(key);

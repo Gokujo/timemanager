@@ -45,7 +45,7 @@ describe('Routing ArbZG Compliance', () => {
         '/datenschutz',
         '/impressum',
         '/nutzungsbedingungen',
-        '/benutzereinstellungen'
+        '/einstellungen'
       ];
 
       publicRoutes.forEach(route => {

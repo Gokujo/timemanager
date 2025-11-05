@@ -38,7 +38,7 @@ export class RoutingUtils {
       '/home': '/',
       '/index': '/',
       '/index.html': '/',
-      '/einstellungen': '/benutzereinstellungen'
+      '/benutzereinstellungen': '/einstellungen'
     };
 
     if (redirects[pathname]) {
@@ -125,11 +125,9 @@ export class RoutingUtils {
         navigate(path, options || {});
         return true;
       } else {
-        console.warn(`Ungültige Route: ${path}`);
         return false;
       }
     } catch (error) {
-      console.error('Fehler bei Navigation:', error);
       return false;
     }
   }
@@ -168,7 +166,7 @@ export class RoutingUtils {
     message: string;
     suggestions: Array<{ path: string; label: string; description: string }>;
   } {
-    console.error('Routing error:', error);
+    // Routing error
     
     return {
       message: `Fehler beim Laden der Seite ${pathname}`,
@@ -252,7 +250,7 @@ export const ROUTING_CONSTANTS = {
   DATENSCHUTZ_PATH: '/datenschutz',
   IMPRESSUM_PATH: '/impressum',
   NUTZUNGSBEDINGUNGEN_PATH: '/nutzungsbedingungen',
-  BENUTZEREINSTELLUNGEN_PATH: '/benutzereinstellungen',
+  BENUTZEREINSTELLUNGEN_PATH: '/einstellungen',
   MAX_BREADCRUMB_ITEMS: 5,
   DEFAULT_ERROR_MESSAGE: 'Seite nicht gefunden'
 } as const;
