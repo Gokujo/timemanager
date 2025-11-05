@@ -65,7 +65,7 @@ export const VALID_ROUTES = [
   '/datenschutz',
   '/impressum',
   '/nutzungsbedingungen',
-  '/benutzereinstellungen'
+  '/einstellungen'
 ] as const;
 
 /**
@@ -82,5 +82,5 @@ export const ROUTE_LABELS: Record<ValidRoute, string> = {
   '/datenschutz': 'Datenschutz',
   '/impressum': 'Impressum',
   '/nutzungsbedingungen': 'Nutzungsbedingungen',
-  '/benutzereinstellungen': 'Benutzereinstellungen'
+  '/einstellungen': 'Benutzereinstellungen'
 };

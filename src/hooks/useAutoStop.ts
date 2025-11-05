@@ -235,7 +235,6 @@ export function useAutoStop({
           }
         }
       } catch (error) {
-        console.error('Fehler beim Wiederherstellen des Auto-Stop-Status:', error);
         sessionStorage.removeItem('autoStopMonitoring');
       }
     }

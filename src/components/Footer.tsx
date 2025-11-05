@@ -42,7 +42,7 @@ const Footer: React.FC<FooterProps> = ({ className = '' }) => {
 
         {/* Existing Footer Links */}
         <Link
-          to="/benutzereinstellungen"
+          to="/einstellungen"
           className="text-white/70 hover:text-white transition-colors"
           aria-label="Zu den Benutzereinstellungen"
         >
@@ -83,7 +83,7 @@ const Footer: React.FC<FooterProps> = ({ className = '' }) => {
           aria-label="Zum Changelog"
           data-ripple-light="true"
         >
-          v0.2.4
+          v0.2.5
         </Link>
         <span className="text-white/50">•</span>
         

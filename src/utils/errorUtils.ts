@@ -185,21 +185,7 @@ export const errorUtils = {
       context: errorUtils.isAppError(error) ? error.context : context,
     };
     
-    // Log to console with appropriate level
-    switch (severity) {
-      case ErrorSeverity.LOW:
-        console.info('App Error (Low):', logData);
-        break;
-      case ErrorSeverity.MEDIUM:
-        console.warn('App Error (Medium):', logData);
-        break;
-      case ErrorSeverity.HIGH:
-        console.error('App Error (High):', logData);
-        break;
-      case ErrorSeverity.CRITICAL:
-        console.error('App Error (Critical):', logData);
-        break;
-    }
+    // Logging removed for production
   },
 
   // Handle error gracefully

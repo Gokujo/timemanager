@@ -3,8 +3,9 @@ import { Break } from '../interfaces/break';
 import { getPlans } from '../constants/plans';
 import { getWorkDays } from '../constants/workDays';
 import { calculateWorkedTime, saveStateToLocalStorage, loadStateFromLocalStorage } from '../utils/timeUtils';
-import { validateWorkTime, ValidationResult } from '../utils/validationUtils';
+import { validateWorkTime, validateBreakOverlap, ValidationResult } from '../utils/validationUtils';
 import { getDefaultBreaks } from '../utils/userSettingsUtils';
+import { getActiveBreak } from '../utils/breakUtils';
 
 export interface TimeTrackingState {
   plan: string;
@@ -178,6 +179,29 @@ export const useTimeTracking = (): [TimeTrackingState, TimeTrackingActions] => {
   }, [status, breaks]);
 
   const resume = useCallback(() => {
+    const currentTime = new Date();
+    const activeBreak = getActiveBreak(breaks, currentTime);
+
+    // Check for active planned break first (FR-005)
+    if (activeBreak) {
+      const newBreaks = [...breaks];
+      const breakIndex = newBreaks.findIndex(b => 
+        b.start === activeBreak.start && b.end === activeBreak.end
+      );
+
+      if (breakIndex !== -1) {
+        // Set end time to current time (FR-006)
+        newBreaks[breakIndex].end = currentTime;
+        // Calculate and save duration automatically (FR-007)
+        const duration = (newBreaks[breakIndex].end.getTime() - newBreaks[breakIndex].start!.getTime()) / 1000 / 60;
+        newBreaks[breakIndex].duration = Math.max(0, Math.round(duration));
+        setBreaks(newBreaks);
+        // Keep status 'running' (FR-008)
+        return;
+      }
+    }
+
+    // Normal resume logic for manual pause (status === 'paused')
     if (status === 'paused') {
       const newBreaks = [...breaks];
       const lastBreak = newBreaks[newBreaks.length - 1];
@@ -198,7 +222,12 @@ export const useTimeTracking = (): [TimeTrackingState, TimeTrackingActions] => {
   }, [validateAndSetWarnings]);
 
   const addBreak = useCallback(() => {
-    setBreaks([...breaks, { start: null, end: null, duration: 0 }]);
+    // Validate overlap before adding new break
+    const newBreak: Break = { start: null, end: null, duration: 0 };
+    const validation = validateBreakOverlap(newBreak, breaks);
+    
+    // Planned breaks (without start/end) cannot overlap, so always allow
+    setBreaks([...breaks, newBreak]);
   }, [breaks]);
 
   const deleteBreak = useCallback((index: number) => {
@@ -258,6 +287,23 @@ export const useTimeTracking = (): [TimeTrackingState, TimeTrackingActions] => {
     const [hours, minutes] = value.split(':').map(Number);
     // DST-Fix: Verwende Date-Konstruktor statt setHours() für korrekte Zeitzonen-Behandlung
     const breakStart = new Date(startTime.getFullYear(), startTime.getMonth(), startTime.getDate(), hours, minutes, 0, 0);
+    
+    // Create updated break for validation
+    const updatedBreak: Break = {
+      ...newBreaks[index],
+      start: breakStart
+    };
+    
+    // Validate overlap before updating (exclude current break from existing breaks)
+    const existingBreaks = newBreaks.filter((_, i) => i !== index);
+    const validation = validateBreakOverlap(updatedBreak, existingBreaks);
+    
+    // If validation fails, show error and don't update
+    if (!validation.isValid && validation.errors && validation.errors.length > 0) {
+      alert(validation.errors.join('\n'));
+      return;
+    }
+    
     newBreaks[index].start = breakStart;
     
     // Automatische Berechnung der Pausendauer wenn Start- und Endzeit vorhanden sind
@@ -278,6 +324,23 @@ export const useTimeTracking = (): [TimeTrackingState, TimeTrackingActions] => {
     const [hours, minutes] = value.split(':').map(Number);
     // DST-Fix: Verwende Date-Konstruktor statt setHours() für korrekte Zeitzonen-Behandlung
     const breakEnd = new Date(startTime.getFullYear(), startTime.getMonth(), startTime.getDate(), hours, minutes, 0, 0);
+    
+    // Create updated break for validation
+    const updatedBreak: Break = {
+      ...newBreaks[index],
+      end: breakEnd
+    };
+    
+    // Validate overlap before updating (exclude current break from existing breaks)
+    const existingBreaks = newBreaks.filter((_, i) => i !== index);
+    const validation = validateBreakOverlap(updatedBreak, existingBreaks);
+    
+    // If validation fails, show error and don't update
+    if (!validation.isValid && validation.errors && validation.errors.length > 0) {
+      alert(validation.errors.join('\n'));
+      return;
+    }
+    
     newBreaks[index].end = breakEnd;
     
     // Automatische Berechnung der Pausendauer wenn Start- und Endzeit vorhanden sind

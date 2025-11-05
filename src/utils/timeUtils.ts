@@ -3,7 +3,9 @@ import { getActiveBreak } from "./breakUtils";
 
 /**
  * Calculates the total worked time in minutes
- * For active breaks, the worked time is frozen (doesn't increase) until the break ends
+ * For active breaks, the worked time is frozen (doesn't increase) until the break ends.
+ * Planned breaks (duration-only, without start/end times) are NOT subtracted from worked time.
+ * Only completed breaks (with start/end times that have ended) are subtracted.
  */
 export const calculateWorkedTime = (
   startTime: Date | null, 
@@ -86,11 +88,10 @@ export const calculateWorkedTime = (
     return sum;
   }, 0);
 
-  // Also add duration-based breaks (breaks without start/end times)
-  const durationBreaks = breaks.filter((b) => !b.start && !b.end && b.duration);
-  const durationBreakTime = durationBreaks.reduce((sum, b) => sum + (b.duration || 0), 0);
+  // Note: Planned breaks (duration-only, without start/end times) are NOT subtracted here.
+  // They should only be subtracted when they actually occur (have start/end times and are completed).
 
-  return Math.max(0, Math.round(elapsed - breakTime - durationBreakTime));
+  return Math.max(0, Math.round(elapsed - breakTime));
 };
 
 /**
@@ -228,7 +229,7 @@ export const saveStateToLocalStorage = (state: any): void => {
     };
     localStorage.setItem('timeTrackingState', JSON.stringify(stateToSave));
   } catch (error) {
-    console.error('Error saving state to localStorage:', error);
+    // Error saving state to localStorage
   }
 };
 
@@ -263,7 +264,7 @@ export const loadStateFromLocalStorage = (): any | null => {
       }))
     };
   } catch (error) {
-    console.error('Error loading state from localStorage:', error);
+    // Error loading state from localStorage
     return null;
   }
 };

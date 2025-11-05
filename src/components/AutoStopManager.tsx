@@ -61,7 +61,6 @@ const AutoStopManager: React.FC<AutoStopManagerProps> = ({
    */
   function handleWarning(message: string) {
     // Could show toast notification here
-    console.warn('Auto-Stop Warnung:', message);
   }
 
   /**
@@ -190,13 +189,6 @@ const AutoStopManager: React.FC<AutoStopManagerProps> = ({
         </div>
       )}
 
-      {/* Monitoring Status (for debugging) */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="text-xs text-gray-500 mt-2">
-          Monitoring: {isMonitoring ? 'Aktiv' : 'Inaktiv'}
-          {currentWarning && ` | Warnung: ${currentWarning}`}
-        </div>
-      )}
 
       {/* Screen Reader Information */}
       <div className="sr-only" aria-live="polite">

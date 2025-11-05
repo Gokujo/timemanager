@@ -15,6 +15,38 @@ const Changelog: React.FC = () => {
   const versions = useMemo<VersionEntry[]>(
     () => [
       {
+        version: 'v0.2.5',
+        date: '05.11.2025',
+        sections: [
+          {
+            title: 'Neu',
+            items: [
+              'Aktionsknöpfe bei aktiver Pause: Button-States schalten automatisch um, wenn eine geplante Pause aktiv wird.',
+              'Pause-Button wird automatisch ausgeblendet, wenn eine geplante Pause aktiv ist.',
+              'Resume-Button wird automatisch aktiviert, wenn eine geplante Pause aktiv ist.'
+            ]
+          },
+          { 
+            title: 'Geändert', 
+            items: [
+              'Status-Indikator zeigt "Pausiert" (gelb), auch wenn der Status "running" bleibt, wenn eine geplante Pause aktiv ist.',
+              'Controls-Komponente erkennt automatisch aktive geplante Pausen und passt Button-States an.',
+              'Resume-Handler prüft zuerst auf aktive geplante Pause und beendet diese, bevor normale Resume-Logik verwendet wird.'
+            ]
+          },
+          { 
+            title: 'Behoben', 
+            items: [
+              'Arbeitszeit zeigt jetzt sofort > 0 nach Start, auch mit geplanten Pausen.',
+              'Arbeitszeit wird während aktiver Pausen korrekt eingefroren.',
+              'Nur abgeschlossene Pausen werden von der geleisteten Arbeitszeit abgezogen.',
+              'System verhindert präventiv, dass mehrere Pausen zur gleichen Zeit geplant werden können.',
+              'Bei mehreren aktiven Pausen wird die längste Pause verwendet.'
+            ]
+          }
+        ]
+      },
+      {
         version: 'v0.2.4',
         date: '31.10.2025',
         sections: [

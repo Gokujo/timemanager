@@ -158,6 +158,8 @@ const HomePage: React.FC = () => {
 
             <Controls
                 status={state.status}
+                breaks={state.breaks}
+                startTime={state.startTime}
                 onStart={actions.start}
                 onPause={actions.pause}
                 onResume={actions.resume}

@@ -75,7 +75,7 @@ const Benutzereinstellungen: React.FC = () => {
                 const parsed = JSON.parse(savedSettings);
                 setSettings(prev => ({...prev, ...parsed}));
             } catch (error) {
-                console.error('Fehler beim Laden der Einstellungen:', error);
+                // Error loading settings
             }
         }
     }, []);

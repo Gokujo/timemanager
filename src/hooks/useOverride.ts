@@ -212,7 +212,6 @@ export function useOverride({
     const canUse = OverrideUtils.canUseOverride(workTime, overrideSetting.enabled);
     if (!canUse.canOverride && overrideSetting.enabled) {
       // Override is active but cannot be used (e.g., during break)
-      console.warn('Override aktiv aber nicht verwendbar:', canUse.reason);
     }
   }, [workTime, overrideSetting.enabled]);
 
