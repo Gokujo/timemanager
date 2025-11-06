@@ -75,14 +75,18 @@ export const calculateWorkedTime = (
   const elapsed = (calculationTime.getTime() - roundedStartTime.getTime()) / 1000 / 60;
   
   // Calculate break time for completed breaks only
+  // Only count breaks that started AFTER work started and have already ended
   const breakTime = validBreaks.reduce((sum, b) => {
     if (b.start && b.end) {
-      // Only count completed breaks (breaks that have ended)
-      if (now >= b.end) {
-        // For completed breaks, use full duration
-        return sum + (b.end.getTime() - b.start.getTime()) / 1000 / 60;
+      // Only count breaks that started after work started
+      if (b.start >= roundedStartTime) {
+        // Only count completed breaks (breaks that have ended)
+        if (now >= b.end) {
+          // For completed breaks, use full duration
+          return sum + (b.end.getTime() - b.start.getTime()) / 1000 / 60;
+        }
       }
-      // Don't count active or future breaks
+      // Don't count breaks that started before work started, active breaks, or future breaks
       return sum;
     }
     return sum;
