@@ -77,46 +77,18 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Extracted version: ${VERSION}"
 
-  create-release:
-    name: Create Release
+  check-release-exists:
+    name: Check Release Exists
     needs: check-release-branch
     if: |
       needs.check-release-branch.outputs.is-dependabot == 'false' &&
       needs.check-release-branch.outputs.is-release-branch == 'true' &&
       (github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true)
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
+    outputs:
+      exists: ${{ steps.check-release.outputs.exists }}
+      version: ${{ needs.check-release-branch.outputs.version }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-        with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || github.event.pull_request.merge_commit_sha }}
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      - name: Verify version from package.json
-        id: verify-version
-        run: |
-          PACKAGE_VERSION=$(npm pkg get version | tr -d '"')
-          BRANCH_VERSION="${{ needs.check-release-branch.outputs.version }}"
-
-          if [ "$PACKAGE_VERSION" != "$BRANCH_VERSION" ]; then
-            echo "❌ Version mismatch!"
-            echo "Package.json version: $PACKAGE_VERSION"
-            echo "Branch version: $BRANCH_VERSION"
-            exit 1
-          fi
-
-          echo "version=${PACKAGE_VERSION}" >> $GITHUB_OUTPUT
-          echo "✅ Version verified: ${PACKAGE_VERSION}"
-
       - name: Check if release already exists
         id: check-release
         run: |
@@ -131,18 +103,35 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  prepare-release-data:
+    name: Prepare Release Data
+    needs: [check-release-branch, check-release-exists]
+    if: |
+      needs.check-release-exists.outputs.exists == 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      previous_exists: ${{ steps.previous-release.outputs.previous_exists }}
+      previous_tag: ${{ steps.previous-release.outputs.previous_tag }}
+      comparison_section: ${{ steps.format-comparison.outputs.comparison_section }}
+      pr_list_section: ${{ steps.format-pr-list.outputs.pr_list_section }}
+      contributors_section: ${{ steps.format-contributors.outputs.contributors_section }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+
       # ============================================================================
       # Phase 1: User Story 1 - Release-Vergleich zum Vorgänger
       # ============================================================================
-      # Find the most recently created release (by creation date, not semantic version)
-      # Handles edge cases: first release, tag not found (404), API rate limits
       - name: Find previous release
         id: previous-release
-        if: steps.check-release.outputs.exists == 'false'
         run: |
           set +e
           # Query GitHub Releases API, sort by created_at, get most recent
-          # Error handling: continue-on-error ensures workflow continues even if API fails
           PREVIOUS_RELEASE=$(gh api repos/${{ github.repository }}/releases \
             --jq 'sort_by(.created_at) | reverse | .[0].tag_name // empty' 2>/dev/null)
 
@@ -176,9 +165,7 @@ jobs:
 
       - name: Create comparison link
         id: comparison-link
-        if: |
-          steps.check-release.outputs.exists == 'false' &&
-          steps.previous-release.outputs.previous_exists == 'true'
+        if: steps.previous-release.outputs.previous_exists == 'true'
         run: |
           CURRENT_TAG="v${{ needs.check-release-branch.outputs.version }}"
           PREVIOUS_TAG="${{ steps.previous-release.outputs.previous_tag }}"
@@ -189,9 +176,7 @@ jobs:
 
       - name: Format comparison link section
         id: format-comparison
-        if: |
-          steps.check-release.outputs.exists == 'false' &&
-          steps.previous-release.outputs.previous_exists == 'true'
+        if: steps.previous-release.outputs.previous_exists == 'true'
         run: |
           CURRENT_TAG="v${{ needs.check-release-branch.outputs.version }}"
           PREVIOUS_TAG="${{ steps.previous-release.outputs.previous_tag }}"
@@ -208,13 +193,9 @@ jobs:
       # ============================================================================
       # Phase 2: User Story 2 - Automatische PR-Liste aus Diff
       # ============================================================================
-      # Get commits between previous and current release using GitHub Compare API
-      # Error handling: continue-on-error ensures workflow continues even if API fails
       - name: Get commits between releases
         id: get-commits
-        if: |
-          steps.check-release.outputs.exists == 'false' &&
-          steps.previous-release.outputs.previous_exists == 'true'
+        if: steps.previous-release.outputs.previous_exists == 'true'
         run: |
           set +e
           CURRENT_TAG="v${{ needs.check-release-branch.outputs.version }}"
@@ -238,13 +219,10 @@ jobs:
 
       - name: Extract PR numbers
         id: extract-prs
-        if: |
-          steps.check-release.outputs.exists == 'false' &&
-          steps.get-commits.outputs.commits_file != ''
+        if: steps.get-commits.outputs.commits_file != ''
         run: |
           set +e
           # Extract PR numbers from commit messages using regex patterns
-          # Patterns: #123, pull request #123, Merge pull request #123, etc.
           PR_NUMBERS=$(jq -r '.message | match("#(\\d+)") | .captures[0].string // empty' commits.json 2>/dev/null | grep -v '^$' | sort -u | tr '\n' ' ')
 
           if [ -n "$PR_NUMBERS" ]; then
@@ -259,9 +237,7 @@ jobs:
 
       - name: Get PR details
         id: get-pr-details
-        if: |
-          steps.check-release.outputs.exists == 'false' &&
-          steps.extract-prs.outputs.pr_numbers != ''
+        if: steps.extract-prs.outputs.pr_numbers != ''
         run: |
           set +e
           PR_DETAILS="[]"
@@ -290,9 +266,7 @@ jobs:
 
       - name: Filter merged PRs
         id: filter-merged-prs
-        if: |
-          steps.check-release.outputs.exists == 'false' &&
-          steps.get-pr-details.outputs.prs_file != ''
+        if: steps.get-pr-details.outputs.prs_file != ''
         run: |
           set +e
           # Filter only merged PRs (state is "closed" and merged is true)
@@ -311,9 +285,7 @@ jobs:
 
       - name: Format PR list section
         id: format-pr-list
-        if: |
-          steps.check-release.outputs.exists == 'false' &&
-          steps.filter-merged-prs.outputs.merged_prs_file != ''
+        if: steps.filter-merged-prs.outputs.merged_prs_file != ''
         run: |
           set +e
           PR_COUNT=$(jq 'length' merged_prs.json 2>/dev/null || echo "0")
@@ -337,13 +309,9 @@ jobs:
       # ============================================================================
       # Phase 3: User Story 3 - Contributors-Liste
       # ============================================================================
-      # Collect contributors from three sources: PR authors, commit authors, PR reviewers
-      # Filter out bots (dependabot, github-actions, cursor, etc.) and deduplicate
       - name: Collect PR authors
         id: collect-pr-authors
-        if: |
-          steps.check-release.outputs.exists == 'false' &&
-          steps.filter-merged-prs.outputs.merged_prs_file != ''
+        if: steps.filter-merged-prs.outputs.merged_prs_file != ''
         run: |
           set +e
           # Extract PR authors from merged PRs (user.login from each PR)
@@ -361,9 +329,7 @@ jobs:
 
       - name: Collect commit authors
         id: collect-commit-authors
-        if: |
-          steps.check-release.outputs.exists == 'false' &&
-          steps.get-commits.outputs.commits_file != ''
+        if: steps.get-commits.outputs.commits_file != ''
         run: |
           set +e
           # Extract commit authors from commits
@@ -393,9 +359,7 @@ jobs:
 
       - name: Collect PR reviewers
         id: collect-pr-reviewers
-        if: |
-          steps.check-release.outputs.exists == 'false' &&
-          steps.filter-merged-prs.outputs.merged_prs_file != ''
+        if: steps.filter-merged-prs.outputs.merged_prs_file != ''
         run: |
           set +e
           # Extract PR reviewers from merged PRs (only approved reviews)
@@ -426,10 +390,9 @@ jobs:
       - name: Filter out bots
         id: filter-bots
         if: |
-          steps.check-release.outputs.exists == 'false' &&
-          (steps.collect-pr-authors.outputs.pr_authors != '' ||
-           steps.collect-commit-authors.outputs.commit_authors != '' ||
-           steps.collect-pr-reviewers.outputs.pr_reviewers != '')
+          steps.collect-pr-authors.outputs.pr_authors != '' ||
+          steps.collect-commit-authors.outputs.commit_authors != '' ||
+          steps.collect-pr-reviewers.outputs.pr_reviewers != ''
         run: |
           set +e
           # Combine all contributors
@@ -477,9 +440,7 @@ jobs:
 
       - name: Format contributors section
         id: format-contributors
-        if: |
-          steps.check-release.outputs.exists == 'false' &&
-          steps.filter-bots.outputs.contributors != ''
+        if: steps.filter-bots.outputs.contributors != ''
         run: |
           set +e
           CONTRIBUTOR_COUNT=$(echo "${{ steps.filter-bots.outputs.contributors }}" | tr ' ' '\n' | grep -v '^$' | wc -l | tr -d ' ')
@@ -502,18 +463,52 @@ jobs:
           set -e
         continue-on-error: true
 
+  build-artifacts:
+    name: Build Artifacts
+    needs: [check-release-branch, check-release-exists]
+    if: |
+      needs.check-release-exists.outputs.exists == 'false'
+    runs-on: ubuntu-latest
+    outputs:
+      zip_name: ${{ steps.create-zip.outputs.zip_name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Verify version from package.json
+        id: verify-version
+        run: |
+          PACKAGE_VERSION=$(npm pkg get version | tr -d '"')
+          BRANCH_VERSION="${{ needs.check-release-branch.outputs.version }}"
+
+          if [ "$PACKAGE_VERSION" != "$BRANCH_VERSION" ]; then
+            echo "❌ Version mismatch!"
+            echo "Package.json version: $PACKAGE_VERSION"
+            echo "Branch version: $BRANCH_VERSION"
+            exit 1
+          fi
+
+          echo "version=${PACKAGE_VERSION}" >> $GITHUB_OUTPUT
+          echo "✅ Version verified: ${PACKAGE_VERSION}"
+
       - name: Install dependencies
-        if: steps.check-release.outputs.exists == 'false'
         run: npm ci
 
       - name: Build application
         id: build
-        if: steps.check-release.outputs.exists == 'false'
         run: npm run build
 
       - name: Create ZIP archive
         id: create-zip
-        if: steps.check-release.outputs.exists == 'false'
         run: |
           VERSION="${{ needs.check-release-branch.outputs.version }}"
           ZIP_NAME="timemanager-v${VERSION}.zip"
@@ -528,14 +523,35 @@ jobs:
           echo "zip_name=${ZIP_NAME}" >> $GITHUB_OUTPUT
           echo "✅ Created ZIP archive: ${ZIP_NAME}"
 
+      - name: Upload ZIP archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-zip
+          path: ${{ steps.create-zip.outputs.zip_name }}
+          retention-days: 1
+
+  create-release:
+    name: Create Release
+    needs: [check-release-branch, check-release-exists, prepare-release-data, build-artifacts]
+    if: |
+      needs.check-release-exists.outputs.exists == 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download ZIP archive
+        uses: actions/download-artifact@v4
+        with:
+          name: release-zip
+          path: .
+
       - name: Prepare release body
         id: prepare-body
-        if: steps.check-release.outputs.exists == 'false'
         run: |
           VERSION="${{ needs.check-release-branch.outputs.version }}"
           EVENT_NAME="${{ github.event_name }}"
 
-          ZIP_NAME="timemanager-v${VERSION}.zip"
+          ZIP_NAME="${{ needs.build-artifacts.outputs.zip_name }}"
 
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             BRANCH="${{ github.head_ref || github.ref_name }}"
@@ -589,18 +605,18 @@ jobs:
           > "$SECTIONS_FILE"  # Clear/create file
 
           # Add comparison section if available
-          if [ -n "${{ steps.format-comparison.outputs.comparison_section }}" ]; then
-            echo "${{ steps.format-comparison.outputs.comparison_section }}" >> "$SECTIONS_FILE"
+          if [ -n "${{ needs.prepare-release-data.outputs.comparison_section }}" ]; then
+            echo "${{ needs.prepare-release-data.outputs.comparison_section }}" >> "$SECTIONS_FILE"
           fi
 
           # Add PR list section if available
-          if [ -n "${{ steps.format-pr-list.outputs.pr_list_section }}" ]; then
-            echo "${{ steps.format-pr-list.outputs.pr_list_section }}" >> "$SECTIONS_FILE"
+          if [ -n "${{ needs.prepare-release-data.outputs.pr_list_section }}" ]; then
+            echo "${{ needs.prepare-release-data.outputs.pr_list_section }}" >> "$SECTIONS_FILE"
           fi
 
           # Add contributors section if available
-          if [ -n "${{ steps.format-contributors.outputs.contributors_section }}" ]; then
-            echo "${{ steps.format-contributors.outputs.contributors_section }}" >> "$SECTIONS_FILE"
+          if [ -n "${{ needs.prepare-release-data.outputs.contributors_section }}" ]; then
+            echo "${{ needs.prepare-release-data.outputs.contributors_section }}" >> "$SECTIONS_FILE"
           fi
 
           # Insert sections before "Links" section using awk with file input
@@ -624,57 +640,20 @@ jobs:
 
       - name: Create release
         id: create-release
-        if: steps.check-release.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.check-release-branch.outputs.version }}
           name: Release v${{ needs.check-release-branch.outputs.version }}
           body: ${{ steps.prepare-body.outputs.body }}
           files: |
-            ${{ steps.create-zip.outputs.zip_name }}
+            ${{ needs.build-artifacts.outputs.zip_name }}
           draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Capture error details
-        if: failure() && steps.check-release.outputs.exists == 'false'
-        id: error-details
-        run: |
-          # Sammle Fehlerdetails aus den vorherigen Steps
-          ERROR_STEPS=""
-          if [ "${{ steps.verify-version.outcome }}" = "failure" ]; then
-            ERROR_STEPS="${ERROR_STEPS}• Versions-Validierung fehlgeschlagen\n"
-          fi
-          if [ "${{ steps.check-release.outcome }}" = "failure" ]; then
-            ERROR_STEPS="${ERROR_STEPS}• Release-Check fehlgeschlagen\n"
-          fi
-          if [ "${{ steps.build.outcome }}" = "failure" ]; then
-            ERROR_STEPS="${ERROR_STEPS}• Build fehlgeschlagen\n"
-          fi
-          if [ "${{ steps.create-zip.outcome }}" = "failure" ]; then
-            ERROR_STEPS="${ERROR_STEPS}• ZIP-Archiv-Erstellung fehlgeschlagen\n"
-          fi
-          if [ "${{ steps.create-release.outcome }}" = "failure" ]; then
-            ERROR_STEPS="${ERROR_STEPS}• Release-Erstellung fehlgeschlagen\n"
-          fi
-
-          ERROR_MSG=$(cat <<EOF
-          **Fehlerhafte Schritte:**
-          ${ERROR_STEPS:-"• Unbekannter Fehler"}
-
-          **Technische Details:**
-          - Workflow: ${{ github.workflow }}
-          - Job: ${{ github.job }}
-          - Run ID: ${{ github.run_id }}
-          EOF
-          )
-          echo "error_details<<EOF" >> $GITHUB_OUTPUT
-          echo -e "$ERROR_MSG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
       - name: Release created successfully
-        if: success() && steps.check-release.outputs.exists == 'false'
+        if: success()
         uses: appleboy/telegram-action@master
         with:
           to: ${{ secrets.TG_CHANNEL }}
@@ -697,7 +676,7 @@ jobs:
         continue-on-error: true
 
       - name: Release creation failed
-        if: failure() && steps.check-release.outputs.exists == 'false'
+        if: failure()
         uses: appleboy/telegram-action@master
         with:
           to: ${{ secrets.TG_CHANNEL }}
@@ -715,9 +694,6 @@ jobs:
 
             ${{ github.event_name != 'workflow_dispatch' && format('**Pull Request**: [#{0}]({1})', github.event.pull_request.number, github.event.pull_request.html_url) || format('**Workflow Run**: [{0}]({1})', github.run_id, format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id)) }}
 
-            ### ❌ Fehlerdetails:
-            ${{ steps.error-details.outputs.error_details }}
-
             ### 🔍 Weitere Informationen:
             Bitte überprüfe die GitHub Actions Logs für detaillierte Fehlerinformationen.
 
@@ -725,7 +701,7 @@ jobs:
         continue-on-error: true
 
       - name: Release created
-        if: success() && steps.check-release.outputs.exists == 'false'
+        if: success()
         run: |
           VERSION="${{ needs.check-release-branch.outputs.version }}"
           echo "✅ Release v${VERSION} successfully created!"
