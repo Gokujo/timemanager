@@ -581,43 +581,41 @@ jobs:
           # Insert new sections into release body
           # Section order: Build-Artefakte -> Comparison -> PR List -> Contributors -> Links
           # ============================================================================
-          # Insert comparison section after "Build-Artefakte" and before "Links"
-          # Error handling: If comparison section is empty (no previous release), skip insertion
+          # Use a more robust approach with temporary files to handle multiline content
+          echo "$RELEASE_BODY" > /tmp/release_body.txt
+
+          # Build sections file in correct order
+          SECTIONS_FILE="/tmp/sections.txt"
+          > "$SECTIONS_FILE"  # Clear/create file
+
+          # Add comparison section if available
           if [ -n "${{ steps.format-comparison.outputs.comparison_section }}" ]; then
-            COMPARISON_SECTION="${{ steps.format-comparison.outputs.comparison_section }}"
-            # Use a temporary file to handle multiline insertion
-            echo "$RELEASE_BODY" > /tmp/release_body.txt
-            # Insert comparison section before "Links" section
-            sed -i "/^### 🔗 Links/i\\${COMPARISON_SECTION}" /tmp/release_body.txt
-            RELEASE_BODY=$(cat /tmp/release_body.txt)
+            echo "${{ steps.format-comparison.outputs.comparison_section }}" >> "$SECTIONS_FILE"
           fi
 
-          # Insert PR list section after comparison section (or after "Build-Artefakte" if no comparison)
-          # Error handling: If PR list section is empty (no PRs in diff), skip insertion
+          # Add PR list section if available
           if [ -n "${{ steps.format-pr-list.outputs.pr_list_section }}" ]; then
-            PR_LIST_SECTION="${{ steps.format-pr-list.outputs.pr_list_section }}"
-            # Use a temporary file to handle multiline insertion
-            echo "$RELEASE_BODY" > /tmp/release_body.txt
-            # Insert PR list section before "Links" section (after comparison if exists)
-            if [ -n "${{ steps.format-comparison.outputs.comparison_section }}" ]; then
-              # Insert after comparison section
-              sed -i "/^### 🔗 Links/i\\${PR_LIST_SECTION}" /tmp/release_body.txt
-            else
-              # Insert after "Build-Artefakte" section
-              sed -i "/^### 🔗 Links/i\\${PR_LIST_SECTION}" /tmp/release_body.txt
-            fi
-            RELEASE_BODY=$(cat /tmp/release_body.txt)
+            echo "${{ steps.format-pr-list.outputs.pr_list_section }}" >> "$SECTIONS_FILE"
           fi
 
-          # Insert contributors section after PR list section (or after comparison/PR list if exists)
-          # Error handling: If contributors section is empty (no contributors identified), skip insertion
+          # Add contributors section if available
           if [ -n "${{ steps.format-contributors.outputs.contributors_section }}" ]; then
-            CONTRIBUTORS_SECTION="${{ steps.format-contributors.outputs.contributors_section }}"
-            # Use a temporary file to handle multiline insertion
-            echo "$RELEASE_BODY" > /tmp/release_body.txt
-            # Insert contributors section before "Links" section (after PR list if exists)
-            sed -i "/^### 🔗 Links/i\\${CONTRIBUTORS_SECTION}" /tmp/release_body.txt
-            RELEASE_BODY=$(cat /tmp/release_body.txt)
+            echo "${{ steps.format-contributors.outputs.contributors_section }}" >> "$SECTIONS_FILE"
+          fi
+
+          # Insert sections before "Links" section using awk with file input
+          if [ -s "$SECTIONS_FILE" ]; then
+            awk '
+              /^### 🔗 Links/ {
+                # Print sections from file before Links section
+                while ((getline line < "/tmp/sections.txt") > 0) {
+                  print line
+                }
+                close("/tmp/sections.txt")
+              }
+              { print }
+            ' /tmp/release_body.txt > /tmp/release_body_new.txt
+            RELEASE_BODY=$(cat /tmp/release_body_new.txt)
           fi
 
           echo "body<<EOF" >> $GITHUB_OUTPUT
