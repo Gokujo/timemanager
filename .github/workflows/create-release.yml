@@ -131,6 +131,377 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # ============================================================================
+      # Phase 1: User Story 1 - Release-Vergleich zum Vorgänger
+      # ============================================================================
+      # Find the most recently created release (by creation date, not semantic version)
+      # Handles edge cases: first release, tag not found (404), API rate limits
+      - name: Find previous release
+        id: previous-release
+        if: steps.check-release.outputs.exists == 'false'
+        run: |
+          set +e
+          # Query GitHub Releases API, sort by created_at, get most recent
+          # Error handling: continue-on-error ensures workflow continues even if API fails
+          PREVIOUS_RELEASE=$(gh api repos/${{ github.repository }}/releases \
+            --jq 'sort_by(.created_at) | reverse | .[0].tag_name // empty' 2>/dev/null)
+
+          if [ -z "$PREVIOUS_RELEASE" ] || [ "$PREVIOUS_RELEASE" = "null" ]; then
+            echo "previous_exists=false" >> $GITHUB_OUTPUT
+            echo "No previous release found (first release or tag not found)"
+          else
+            CURRENT_TAG="v${{ needs.check-release-branch.outputs.version }}"
+            if [ "$PREVIOUS_RELEASE" = "$CURRENT_TAG" ]; then
+              # If the only release is the current one, check for second most recent
+              PREVIOUS_RELEASE=$(gh api repos/${{ github.repository }}/releases \
+                --jq 'sort_by(.created_at) | reverse | .[1].tag_name // empty' 2>/dev/null)
+              if [ -z "$PREVIOUS_RELEASE" ] || [ "$PREVIOUS_RELEASE" = "null" ]; then
+                echo "previous_exists=false" >> $GITHUB_OUTPUT
+                echo "No previous release found (first release)"
+              else
+                echo "previous_exists=true" >> $GITHUB_OUTPUT
+                echo "previous_tag=${PREVIOUS_RELEASE}" >> $GITHUB_OUTPUT
+                echo "Previous release: ${PREVIOUS_RELEASE}"
+              fi
+            else
+              echo "previous_exists=true" >> $GITHUB_OUTPUT
+              echo "previous_tag=${PREVIOUS_RELEASE}" >> $GITHUB_OUTPUT
+              echo "Previous release: ${PREVIOUS_RELEASE}"
+            fi
+          fi
+          set -e
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Create comparison link
+        id: comparison-link
+        if: |
+          steps.check-release.outputs.exists == 'false' &&
+          steps.previous-release.outputs.previous_exists == 'true'
+        run: |
+          CURRENT_TAG="v${{ needs.check-release-branch.outputs.version }}"
+          PREVIOUS_TAG="${{ steps.previous-release.outputs.previous_tag }}"
+          COMPARISON_URL="https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...${CURRENT_TAG}"
+
+          echo "comparison_url=${COMPARISON_URL}" >> $GITHUB_OUTPUT
+          echo "Comparison URL: ${COMPARISON_URL}"
+
+      - name: Format comparison link section
+        id: format-comparison
+        if: |
+          steps.check-release.outputs.exists == 'false' &&
+          steps.previous-release.outputs.previous_exists == 'true'
+        run: |
+          CURRENT_TAG="v${{ needs.check-release-branch.outputs.version }}"
+          PREVIOUS_TAG="${{ steps.previous-release.outputs.previous_tag }}"
+          COMPARISON_URL="${{ steps.comparison-link.outputs.comparison_url }}"
+
+          cat <<EOF >> $GITHUB_OUTPUT
+          comparison_section<<COMPARISON_EOF
+          ### 🔄 Vergleich zum Vorgänger-Release
+          - [Vergleich ${PREVIOUS_TAG}...${CURRENT_TAG}](${COMPARISON_URL})
+
+          COMPARISON_EOF
+          EOF
+
+      # ============================================================================
+      # Phase 2: User Story 2 - Automatische PR-Liste aus Diff
+      # ============================================================================
+      # Get commits between previous and current release using GitHub Compare API
+      # Error handling: continue-on-error ensures workflow continues even if API fails
+      - name: Get commits between releases
+        id: get-commits
+        if: |
+          steps.check-release.outputs.exists == 'false' &&
+          steps.previous-release.outputs.previous_exists == 'true'
+        run: |
+          set +e
+          CURRENT_TAG="v${{ needs.check-release-branch.outputs.version }}"
+          PREVIOUS_TAG="${{ steps.previous-release.outputs.previous_tag }}"
+
+          # Use GitHub Compare API: GET /repos/{owner}/{repo}/compare/{base}...{head}
+          gh api repos/${{ github.repository }}/compare/${PREVIOUS_TAG}...${CURRENT_TAG} \
+            --jq '.commits[] | {sha: .sha, message: .commit.message}' > commits.json 2>/dev/null
+
+          if [ -s commits.json ]; then
+            echo "commits_file=commits.json" >> $GITHUB_OUTPUT
+            echo "✅ Found commits between ${PREVIOUS_TAG} and ${CURRENT_TAG}"
+          else
+            echo "commits_file=" >> $GITHUB_OUTPUT
+            echo "No commits found between ${PREVIOUS_TAG} and ${CURRENT_TAG}"
+          fi
+          set -e
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Extract PR numbers
+        id: extract-prs
+        if: |
+          steps.check-release.outputs.exists == 'false' &&
+          steps.get-commits.outputs.commits_file != ''
+        run: |
+          set +e
+          # Extract PR numbers from commit messages using regex patterns
+          # Patterns: #123, pull request #123, Merge pull request #123, etc.
+          PR_NUMBERS=$(jq -r '.message | match("#(\\d+)") | .captures[0].string // empty' commits.json 2>/dev/null | grep -v '^$' | sort -u | tr '\n' ' ')
+
+          if [ -n "$PR_NUMBERS" ]; then
+            echo "pr_numbers=${PR_NUMBERS}" >> $GITHUB_OUTPUT
+            echo "✅ Extracted PR numbers: ${PR_NUMBERS}"
+          else
+            echo "pr_numbers=" >> $GITHUB_OUTPUT
+            echo "No PR numbers found in commit messages"
+          fi
+          set -e
+        continue-on-error: true
+
+      - name: Get PR details
+        id: get-pr-details
+        if: |
+          steps.check-release.outputs.exists == 'false' &&
+          steps.extract-prs.outputs.pr_numbers != ''
+        run: |
+          set +e
+          PR_DETAILS="[]"
+
+          for PR_NUM in ${{ steps.extract-prs.outputs.pr_numbers }}; do
+            PR_DATA=$(gh api repos/${{ github.repository }}/pulls/${PR_NUM} \
+              --jq '{number: .number, title: .title, url: .html_url, author: .user.login, merged_at: .merged_at, state: .state, merged: .merged}' 2>/dev/null || echo 'null')
+            
+            if [ "$PR_DATA" != "null" ] && [ -n "$PR_DATA" ]; then
+              PR_DETAILS=$(echo "$PR_DETAILS" | jq ". + [$PR_DATA]")
+            fi
+          done
+
+          if [ "$PR_DETAILS" != "[]" ] && [ -n "$PR_DETAILS" ]; then
+            echo "$PR_DETAILS" > prs.json
+            echo "prs_file=prs.json" >> $GITHUB_OUTPUT
+            echo "✅ Fetched PR details"
+          else
+            echo "prs_file=" >> $GITHUB_OUTPUT
+            echo "No PR details found"
+          fi
+          set -e
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Filter merged PRs
+        id: filter-merged-prs
+        if: |
+          steps.check-release.outputs.exists == 'false' &&
+          steps.get-pr-details.outputs.prs_file != ''
+        run: |
+          set +e
+          # Filter only merged PRs (state is "closed" and merged is true)
+          MERGED_PRS=$(jq '[.[] | select(.state == "closed" and .merged == true)]' prs.json 2>/dev/null)
+
+          if [ "$MERGED_PRS" != "[]" ] && [ -n "$MERGED_PRS" ]; then
+            echo "$MERGED_PRS" > merged_prs.json
+            echo "merged_prs_file=merged_prs.json" >> $GITHUB_OUTPUT
+            echo "✅ Filtered merged PRs"
+          else
+            echo "merged_prs_file=" >> $GITHUB_OUTPUT
+            echo "No merged PRs found"
+          fi
+          set -e
+        continue-on-error: true
+
+      - name: Format PR list section
+        id: format-pr-list
+        if: |
+          steps.check-release.outputs.exists == 'false' &&
+          steps.filter-merged-prs.outputs.merged_prs_file != ''
+        run: |
+          set +e
+          PR_COUNT=$(jq 'length' merged_prs.json 2>/dev/null || echo "0")
+
+          if [ "$PR_COUNT" -gt 0 ]; then
+            cat <<EOF >> $GITHUB_OUTPUT
+          pr_list_section<<PR_LIST_EOF
+          ### 📋 Pull Requests
+          $(jq -r '.[] | "- [\(.title) (#\(.number))](\(.url)) - @\(.author)"' merged_prs.json)
+
+          PR_LIST_EOF
+          EOF
+            echo "✅ Formatted PR list section with ${PR_COUNT} PRs"
+          else
+            echo "pr_list_section=" >> $GITHUB_OUTPUT
+            echo "No PRs to format"
+          fi
+          set -e
+        continue-on-error: true
+
+      # ============================================================================
+      # Phase 3: User Story 3 - Contributors-Liste
+      # ============================================================================
+      # Collect contributors from three sources: PR authors, commit authors, PR reviewers
+      # Filter out bots (dependabot, github-actions, cursor, etc.) and deduplicate
+      - name: Collect PR authors
+        id: collect-pr-authors
+        if: |
+          steps.check-release.outputs.exists == 'false' &&
+          steps.filter-merged-prs.outputs.merged_prs_file != ''
+        run: |
+          set +e
+          # Extract PR authors from merged PRs (user.login from each PR)
+          PR_AUTHORS=$(jq -r '.[].author' merged_prs.json 2>/dev/null | sort -u | tr '\n' ' ')
+
+          if [ -n "$PR_AUTHORS" ]; then
+            echo "pr_authors=${PR_AUTHORS}" >> $GITHUB_OUTPUT
+            echo "✅ Collected PR authors: ${PR_AUTHORS}"
+          else
+            echo "pr_authors=" >> $GITHUB_OUTPUT
+            echo "No PR authors found"
+          fi
+          set -e
+        continue-on-error: true
+
+      - name: Collect commit authors
+        id: collect-commit-authors
+        if: |
+          steps.check-release.outputs.exists == 'false' &&
+          steps.get-commits.outputs.commits_file != ''
+        run: |
+          set +e
+          # Extract commit authors from commits
+          COMMIT_AUTHORS=""
+
+          for SHA in $(jq -r '.[].sha' commits.json 2>/dev/null | head -20); do
+            AUTHOR=$(gh api repos/${{ github.repository }}/commits/${SHA} \
+              --jq '.author.login // empty' 2>/dev/null || echo '')
+            if [ -n "$AUTHOR" ]; then
+              COMMIT_AUTHORS="${COMMIT_AUTHORS} ${AUTHOR}"
+            fi
+          done
+
+          COMMIT_AUTHORS=$(echo "$COMMIT_AUTHORS" | tr ' ' '\n' | sort -u | tr '\n' ' ')
+
+          if [ -n "$COMMIT_AUTHORS" ]; then
+            echo "commit_authors=${COMMIT_AUTHORS}" >> $GITHUB_OUTPUT
+            echo "✅ Collected commit authors: ${COMMIT_AUTHORS}"
+          else
+            echo "commit_authors=" >> $GITHUB_OUTPUT
+            echo "No commit authors found"
+          fi
+          set -e
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Collect PR reviewers
+        id: collect-pr-reviewers
+        if: |
+          steps.check-release.outputs.exists == 'false' &&
+          steps.filter-merged-prs.outputs.merged_prs_file != ''
+        run: |
+          set +e
+          # Extract PR reviewers from merged PRs (only approved reviews)
+          PR_REVIEWERS=""
+
+          for PR_NUM in $(jq -r '.[].number' merged_prs.json 2>/dev/null); do
+            REVIEWERS=$(gh api repos/${{ github.repository }}/pulls/${PR_NUM}/reviews \
+              --jq '.[] | select(.state == "APPROVED") | .user.login' 2>/dev/null || echo '')
+            if [ -n "$REVIEWERS" ]; then
+              PR_REVIEWERS="${PR_REVIEWERS} ${REVIEWERS}"
+            fi
+          done
+
+          PR_REVIEWERS=$(echo "$PR_REVIEWERS" | tr ' ' '\n' | sort -u | tr '\n' ' ')
+
+          if [ -n "$PR_REVIEWERS" ]; then
+            echo "pr_reviewers=${PR_REVIEWERS}" >> $GITHUB_OUTPUT
+            echo "✅ Collected PR reviewers: ${PR_REVIEWERS}"
+          else
+            echo "pr_reviewers=" >> $GITHUB_OUTPUT
+            echo "No PR reviewers found"
+          fi
+          set -e
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Filter out bots
+        id: filter-bots
+        if: |
+          steps.check-release.outputs.exists == 'false' &&
+          (steps.collect-pr-authors.outputs.pr_authors != '' ||
+           steps.collect-commit-authors.outputs.commit_authors != '' ||
+           steps.collect-pr-reviewers.outputs.pr_reviewers != '')
+        run: |
+          set +e
+          # Combine all contributors
+          ALL_CONTRIBUTORS="${{ steps.collect-pr-authors.outputs.pr_authors }} ${{ steps.collect-commit-authors.outputs.commit_authors }} ${{ steps.collect-pr-reviewers.outputs.pr_reviewers }}"
+
+          # Filter out bots (dependabot, github-actions, cursor, etc.)
+          BOT_PATTERNS="dependabot github-actions cursor"
+          FILTERED_CONTRIBUTORS=""
+
+          for CONTRIBUTOR in $(echo "$ALL_CONTRIBUTORS" | tr ' ' '\n' | sort -u); do
+            if [ -z "$CONTRIBUTOR" ]; then
+              continue
+            fi
+            
+            IS_BOT=false
+            # Check if username ends with [bot]
+            if [[ "$CONTRIBUTOR" == *"[bot]" ]]; then
+              IS_BOT=true
+            fi
+            
+            # Check if username matches known bot patterns
+            for BOT in $BOT_PATTERNS; do
+              if [[ "$CONTRIBUTOR" == *"$BOT"* ]]; then
+                IS_BOT=true
+                break
+              fi
+            done
+            
+            if [ "$IS_BOT" = "false" ]; then
+              FILTERED_CONTRIBUTORS="${FILTERED_CONTRIBUTORS} ${CONTRIBUTOR}"
+            fi
+          done
+
+          FILTERED_CONTRIBUTORS=$(echo "$FILTERED_CONTRIBUTORS" | tr ' ' '\n' | sort -u | tr '\n' ' ')
+
+          if [ -n "$FILTERED_CONTRIBUTORS" ]; then
+            echo "contributors=${FILTERED_CONTRIBUTORS}" >> $GITHUB_OUTPUT
+            echo "✅ Filtered contributors (bots excluded): ${FILTERED_CONTRIBUTORS}"
+          else
+            echo "contributors=" >> $GITHUB_OUTPUT
+            echo "No contributors found (after filtering bots)"
+          fi
+          set -e
+        continue-on-error: true
+
+      - name: Format contributors section
+        id: format-contributors
+        if: |
+          steps.check-release.outputs.exists == 'false' &&
+          steps.filter-bots.outputs.contributors != ''
+        run: |
+          set +e
+          CONTRIBUTOR_COUNT=$(echo "${{ steps.filter-bots.outputs.contributors }}" | tr ' ' '\n' | grep -v '^$' | wc -l | tr -d ' ')
+
+          if [ "$CONTRIBUTOR_COUNT" -gt 0 ]; then
+            cat <<EOF >> $GITHUB_OUTPUT
+          contributors_section<<CONTRIBUTORS_EOF
+          ### 👥 Contributors
+          $(for CONTRIBUTOR in ${{ steps.filter-bots.outputs.contributors }}; do
+              echo "- [@${CONTRIBUTOR}](https://github.com/${CONTRIBUTOR})"
+            done)
+
+          CONTRIBUTORS_EOF
+          EOF
+            echo "✅ Formatted contributors section with ${CONTRIBUTOR_COUNT} contributors"
+          else
+            echo "contributors_section=" >> $GITHUB_OUTPUT
+            echo "No contributors to format"
+          fi
+          set -e
+        continue-on-error: true
+
       - name: Install dependencies
         if: steps.check-release.outputs.exists == 'false'
         run: npm ci
@@ -204,6 +575,49 @@ jobs:
           ### 📋 Pull Request Details
           **Titel**: ${{ github.event.pull_request.title }}
           **Beschreibung**: ${{ github.event.pull_request.body }}"
+          fi
+
+          # ============================================================================
+          # Insert new sections into release body
+          # Section order: Build-Artefakte -> Comparison -> PR List -> Contributors -> Links
+          # ============================================================================
+          # Insert comparison section after "Build-Artefakte" and before "Links"
+          # Error handling: If comparison section is empty (no previous release), skip insertion
+          if [ -n "${{ steps.format-comparison.outputs.comparison_section }}" ]; then
+            COMPARISON_SECTION="${{ steps.format-comparison.outputs.comparison_section }}"
+            # Use a temporary file to handle multiline insertion
+            echo "$RELEASE_BODY" > /tmp/release_body.txt
+            # Insert comparison section before "Links" section
+            sed -i "/^### 🔗 Links/i\\${COMPARISON_SECTION}" /tmp/release_body.txt
+            RELEASE_BODY=$(cat /tmp/release_body.txt)
+          fi
+
+          # Insert PR list section after comparison section (or after "Build-Artefakte" if no comparison)
+          # Error handling: If PR list section is empty (no PRs in diff), skip insertion
+          if [ -n "${{ steps.format-pr-list.outputs.pr_list_section }}" ]; then
+            PR_LIST_SECTION="${{ steps.format-pr-list.outputs.pr_list_section }}"
+            # Use a temporary file to handle multiline insertion
+            echo "$RELEASE_BODY" > /tmp/release_body.txt
+            # Insert PR list section before "Links" section (after comparison if exists)
+            if [ -n "${{ steps.format-comparison.outputs.comparison_section }}" ]; then
+              # Insert after comparison section
+              sed -i "/^### 🔗 Links/i\\${PR_LIST_SECTION}" /tmp/release_body.txt
+            else
+              # Insert after "Build-Artefakte" section
+              sed -i "/^### 🔗 Links/i\\${PR_LIST_SECTION}" /tmp/release_body.txt
+            fi
+            RELEASE_BODY=$(cat /tmp/release_body.txt)
+          fi
+
+          # Insert contributors section after PR list section (or after comparison/PR list if exists)
+          # Error handling: If contributors section is empty (no contributors identified), skip insertion
+          if [ -n "${{ steps.format-contributors.outputs.contributors_section }}" ]; then
+            CONTRIBUTORS_SECTION="${{ steps.format-contributors.outputs.contributors_section }}"
+            # Use a temporary file to handle multiline insertion
+            echo "$RELEASE_BODY" > /tmp/release_body.txt
+            # Insert contributors section before "Links" section (after PR list if exists)
+            sed -i "/^### 🔗 Links/i\\${CONTRIBUTORS_SECTION}" /tmp/release_body.txt
+            RELEASE_BODY=$(cat /tmp/release_body.txt)
           fi
 
           echo "body<<EOF" >> $GITHUB_OUTPUT

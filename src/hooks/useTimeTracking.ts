@@ -119,16 +119,27 @@ export const useTimeTracking = (): [TimeTrackingState, TimeTrackingActions] => {
 
   // Update worked minutes in real-time
   useEffect(() => {
+    if (!startTime || status === 'stopped') {
+      if (status === 'stopped') {
+        setWorkedMinutes(0);
+      }
+      return;
+    }
+
     const interval = setInterval(() => {
       if (status === 'running' || status === 'paused') {
         const calculatedTime = calculateWorkedTime(startTime, breaks, status);
         setWorkedMinutes(calculatedTime);
-        validateAndSetWarnings();
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [status, startTime, breaks, validateAndSetWarnings]);
+  }, [status, startTime, breaks]);
+
+  // Validate and set warnings whenever relevant state changes
+  useEffect(() => {
+    validateAndSetWarnings();
+  }, [workedMinutes, breaks, startTime, status, plan, plannedWork, validateAndSetWarnings]);
 
   // Save state to localStorage whenever it changes
   useEffect(() => {
