@@ -24,12 +24,27 @@ fi
 
 # Find previous version if not provided
 if [ -z "$2" ]; then
-    # Try to get from git branches
-    PREVIOUS_VERSION=$(git branch -r 2>/dev/null | grep -E "releases/v[0-9]+\.[0-9]+\.[0-9]+" | sed 's|origin/releases/v||' | sort -V | awk -v current="$VERSION" '$1 < current {prev=$1} END {print prev}')
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    GET_LATEST_VERSION="$SCRIPT_DIR/get-latest-version.sh"
+    
+    # Use helper script to get latest version
+    if [ -f "$GET_LATEST_VERSION" ]; then
+        LATEST_VERSION=$("$GET_LATEST_VERSION")
+        # If current version is greater than latest, use latest as previous
+        if [ "$(printf '%s\n' "$VERSION" "$LATEST_VERSION" | sort -V | tail -1)" = "$VERSION" ] && [ "$VERSION" != "$LATEST_VERSION" ]; then
+            PREVIOUS_VERSION="$LATEST_VERSION"
+        else
+            # Current version is latest or less, find previous from branches/tags
+            PREVIOUS_VERSION=$(git branch -r 2>/dev/null | grep -E "releases/v[0-9]+\.[0-9]+\.[0-9]+" | sed 's|origin/releases/v||' | sort -V | awk -v current="$VERSION" '$1 < current {prev=$1} END {print prev}')
+        fi
+    else
+        # Fallback: try to get from git branches
+        PREVIOUS_VERSION=$(git branch -r 2>/dev/null | grep -E "releases/v[0-9]+\.[0-9]+\.[0-9]+" | sed 's|origin/releases/v||' | sort -V | awk -v current="$VERSION" '$1 < current {prev=$1} END {print prev}')
+    fi
     
     # Fallback: get from CHANGELOG.md
     if [ -z "$PREVIOUS_VERSION" ] && [ -f "$CHANGELOG_FILE" ]; then
-        PREVIOUS_VERSION=$(grep -E "^## \[0\.[0-9]+\.[0-9]+\]" "$CHANGELOG_FILE" | head -2 | tail -1 | sed 's/## \[\(.*\)\].*/\1/')
+        PREVIOUS_VERSION=$(grep -E "^## \[[0-9]+\.[0-9]+\.[0-9]+\]" "$CHANGELOG_FILE" | head -2 | tail -1 | sed 's/## \[\(.*\)\].*/\1/')
     fi
     
     if [ -z "$PREVIOUS_VERSION" ]; then
@@ -75,8 +90,8 @@ CURRENT_DATE=$(date +%Y-%m-%d)
 
 # Replace placeholders in template
 if [ -f "$TEMPLATE_FILE" ]; then
-    sed -e "s/{VERSION}/[${VERSION}](https://github.com/Gokujo/timemanager/tree/releases/${VERSION})/g" \
-        -e "s/{PREVIOUS_VERSION}/[${PREVIOUS_VERSION}](https://github.com/Gokujo/timemanager/releases/tag/${PREVIOUS_VERSION})/g" \
+    sed -e "s/{VERSION}/[${VERSION}](https://github.com/Gokujo/timemanager/tree/releases\/v${VERSION})/g" \
+        -e "s/{PREVIOUS_VERSION}/[${PREVIOUS_VERSION}](https://github.com/Gokujo/timemanager/tree/releases\/v${PREVIOUS_VERSION})/g" \
         -e "s/{DATE}/${CURRENT_DATE}/g" \
         "$TEMPLATE_FILE" > /tmp/pr_description.md
     
@@ -85,17 +100,30 @@ if [ -f "$TEMPLATE_FILE" ]; then
         # Create a temporary file with the changelog entry
         echo "$CHANGELOG_ENTRY" > /tmp/changelog_entry.md
         
-        # Replace the placeholder in the template
-        awk '
-            /```markdown/ {
+        # Replace the placeholder section in the template
+        # Find the ```markdown block and replace everything until ``` with the actual changelog
+        awk -v version="$VERSION" '
+            BEGIN { in_markdown = 0; changelog_printed = 0 }
+            /^```markdown$/ {
+                in_markdown = 1
                 print
+                # Print the changelog entry
                 while ((getline line < "/tmp/changelog_entry.md") > 0) {
                     print line
                 }
                 close("/tmp/changelog_entry.md")
+                changelog_printed = 1
                 next
             }
-            /^## \[VERSION\]/ { next }
+            in_markdown && /^```$/ {
+                in_markdown = 0
+                print
+                next
+            }
+            in_markdown {
+                # Skip lines inside the markdown block (placeholder content)
+                next
+            }
             { print }
         ' /tmp/pr_description.md > /tmp/pr_description_final.md
         mv /tmp/pr_description_final.md /tmp/pr_description.md

@@ -1,0 +1,87 @@
+name: Dependabot Branch Router
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  route-dependabot-pr:
+    name: Route Dependabot PR to Next Version Branch
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get latest version
+        id: latest-version
+        run: |
+          chmod +x .github/scripts/get-latest-version.sh
+          LATEST_VERSION=$(.github/scripts/get-latest-version.sh)
+          echo "latest-version=${LATEST_VERSION}" >> $GITHUB_OUTPUT
+          echo "Latest version: ${LATEST_VERSION}"
+
+      - name: Calculate next version
+        id: next-version
+        run: |
+          chmod +x .github/scripts/get-next-version.sh
+          NEXT_VERSION=$(.github/scripts/get-next-version.sh "${{ steps.latest-version.outputs.latest-version }}")
+          echo "next-version=${NEXT_VERSION}" >> $GITHUB_OUTPUT
+          echo "Next version: ${NEXT_VERSION}"
+
+      - name: Check if target branch exists
+        id: check-branch
+        run: |
+          TARGET_BRANCH="releases/v${{ steps.next-version.outputs.next-version }}"
+          if git ls-remote --heads origin "$TARGET_BRANCH" | grep -q "$TARGET_BRANCH"; then
+            echo "branch-exists=true" >> $GITHUB_OUTPUT
+            echo "Target branch exists: $TARGET_BRANCH"
+          else
+            echo "branch-exists=false" >> $GITHUB_OUTPUT
+            echo "Target branch does not exist: $TARGET_BRANCH"
+          fi
+          echo "target-branch=${TARGET_BRANCH}" >> $GITHUB_OUTPUT
+
+      - name: Create target branch if it doesn't exist
+        if: steps.check-branch.outputs.branch-exists == 'false'
+        run: |
+          TARGET_BRANCH="releases/v${{ steps.next-version.outputs.next-version }}"
+          # Fetch main branch first
+          git fetch origin main:main || git fetch origin master:master
+          # Determine which branch exists
+          if git show-ref --verify --quiet refs/remotes/origin/main; then
+            BASE_BRANCH="main"
+          else
+            BASE_BRANCH="master"
+          fi
+          # Create branch from base branch
+          git checkout -b "$TARGET_BRANCH" "origin/$BASE_BRANCH"
+          git push origin "$TARGET_BRANCH"
+          echo "Created branch: $TARGET_BRANCH from $BASE_BRANCH"
+
+      - name: Update PR base branch
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const targetBranch = 'releases/v${{ steps.next-version.outputs.next-version }}';
+            const prNumber = context.payload.pull_request.number;
+            
+            // Update the PR base branch
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+              base: targetBranch
+            });
+            
+            console.log(`Updated PR #${prNumber} base branch to ${targetBranch}`);
+

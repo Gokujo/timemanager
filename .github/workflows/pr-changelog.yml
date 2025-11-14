@@ -34,13 +34,22 @@ jobs:
         id: previous-version
         run: |
           CURRENT_VERSION="${{ steps.version.outputs.version }}"
+          chmod +x .github/scripts/get-latest-version.sh
           
-          # Get all release branches and sort them
-          PREVIOUS_VERSION=$(git branch -r | grep -E "releases/v[0-9]+\.[0-9]+\.[0-9]+" | sed 's|origin/releases/v||' | sort -V | awk -v current="$CURRENT_VERSION" '$1 < current {prev=$1} END {print prev}')
+          # Use helper script to get latest version
+          LATEST_VERSION=$(.github/scripts/get-latest-version.sh)
+          
+          # If current version is greater than latest, use latest as previous
+          if [ "$(printf '%s\n' "$CURRENT_VERSION" "$LATEST_VERSION" | sort -V | tail -1)" = "$CURRENT_VERSION" ] && [ "$CURRENT_VERSION" != "$LATEST_VERSION" ]; then
+            PREVIOUS_VERSION="$LATEST_VERSION"
+          else
+            # Current version is latest or less, find previous from branches/tags
+            PREVIOUS_VERSION=$(git branch -r | grep -E "releases/v[0-9]+\.[0-9]+\.[0-9]+" | sed 's|origin/releases/v||' | sort -V | awk -v current="$CURRENT_VERSION" '$1 < current {prev=$1} END {print prev}')
+          fi
           
           if [ -z "$PREVIOUS_VERSION" ]; then
             # Fallback: try to get from CHANGELOG.md
-            PREVIOUS_VERSION=$(grep -E "^## \[0\.[0-9]+\.[0-9]+\]" CHANGELOG.md | head -2 | tail -1 | sed 's/## \[\(.*\)\].*/\1/')
+            PREVIOUS_VERSION=$(grep -E "^## \[[0-9]+\.[0-9]+\.[0-9]+\]" CHANGELOG.md | head -2 | tail -1 | sed 's/## \[\(.*\)\].*/\1/')
           fi
           
           if [ -z "$PREVIOUS_VERSION" ]; then
