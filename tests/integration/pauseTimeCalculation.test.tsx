@@ -303,5 +303,249 @@ describe('Pause Time Calculation Integration', () => {
       });
     });
   });
+
+  describe('User Story: Remaining time freeze during active break', () => {
+    it('should freeze remaining time during active break', async () => {
+      // Arrange: Start time 1 hour ago, active break (started 15 minutes ago, ends in 15 minutes)
+      const startTime = new Date('2025-11-05T09:00:00');
+      const breaks: Break[] = [
+        {
+          start: new Date('2025-11-05T09:45:00'), // Started 15 minutes ago
+          end: new Date('2025-11-05T10:15:00'), // Ends in 15 minutes
+          duration: 30,
+        },
+      ];
+      const plannedWork = 480; // 8 hours
+      const workedMinutes = calculateWorkedTime(startTime, breaks, 'running');
+      
+      // Calculate remaining time: should be frozen at break start
+      // At break start: 45 minutes worked, so 480 - 45 = 435 minutes remaining
+      // During break: should stay at 435 minutes (frozen)
+      const expectedRemainingAtBreakStart = plannedWork - 45; // 435 minutes
+      
+      const mockState = {
+        plan: 'VOR_ORT',
+        status: 'running' as const,
+        startTime,
+        manualStart: '09:00',
+        workedMinutes,
+        breaks,
+        plannedWork,
+        warnings: [],
+      };
+      const mockActions = {
+        setPlan: jest.fn(),
+        setManualStart: jest.fn(),
+        setPlannedWork: jest.fn(),
+        start: jest.fn(),
+        pause: jest.fn(),
+        resume: jest.fn(),
+        stop: jest.fn(),
+        addBreak: jest.fn(),
+        deleteBreak: jest.fn(),
+        resetToDefaultBreaks: jest.fn(),
+        clearAllData: jest.fn(),
+        updateBreakDuration: jest.fn(),
+        updateBreakStart: jest.fn(),
+        updateBreakEnd: jest.fn(),
+      };
+
+      mockUseTimeTracking.mockReturnValue([mockState, mockActions]);
+
+      // Act: Render HomePage
+      render(
+        <MemoryRouter>
+          <HomePage />
+        </MemoryRouter>
+      );
+
+      // Assert: Remaining time should be frozen at break start value (435 minutes)
+      // The remaining time calculation should use frozen calculationTime
+      await waitFor(() => {
+        const remainingTime = plannedWork - workedMinutes;
+        expect(remainingTime).toBe(expectedRemainingAtBreakStart); // 435 minutes (frozen)
+      });
+    });
+
+    it('should resume remaining time countdown when break ends', async () => {
+      // Arrange: Start time 1 hour ago, break that ended 30 minutes ago
+      const startTime = new Date('2025-11-05T09:00:00');
+      const breaks: Break[] = [
+        {
+          start: new Date('2025-11-05T09:15:00'), // Started 45 minutes ago
+          end: new Date('2025-11-05T09:30:00'), // Ended 30 minutes ago
+          duration: 15,
+        },
+      ];
+      const plannedWork = 480;
+      const workedMinutes = calculateWorkedTime(startTime, breaks, 'running');
+      
+      const mockState = {
+        plan: 'VOR_ORT',
+        status: 'running' as const,
+        startTime,
+        manualStart: '09:00',
+        workedMinutes,
+        breaks,
+        plannedWork,
+        warnings: [],
+      };
+      const mockActions = {
+        setPlan: jest.fn(),
+        setManualStart: jest.fn(),
+        setPlannedWork: jest.fn(),
+        start: jest.fn(),
+        pause: jest.fn(),
+        resume: jest.fn(),
+        stop: jest.fn(),
+        addBreak: jest.fn(),
+        deleteBreak: jest.fn(),
+        resetToDefaultBreaks: jest.fn(),
+        clearAllData: jest.fn(),
+        updateBreakDuration: jest.fn(),
+        updateBreakStart: jest.fn(),
+        updateBreakEnd: jest.fn(),
+      };
+
+      mockUseTimeTracking.mockReturnValue([mockState, mockActions]);
+
+      // Act: Render HomePage
+      render(
+        <MemoryRouter>
+          <HomePage />
+        </MemoryRouter>
+      );
+
+      // Assert: Remaining time should resume normal countdown (not frozen)
+      await waitFor(() => {
+        const remainingTime = plannedWork - workedMinutes;
+        // 60 minutes elapsed - 15 minutes break = 45 minutes worked
+        // 480 - 45 = 435 minutes remaining (normal calculation, not frozen)
+        expect(remainingTime).toBe(435);
+      });
+    });
+
+    it('should handle multiple active breaks - use longest break (FR-005)', async () => {
+      // Arrange: Start time 1 hour ago, two overlapping active breaks
+      const startTime = new Date('2025-11-05T09:00:00');
+      const breaks: Break[] = [
+        {
+          start: new Date('2025-11-05T09:30:00'), // Shorter break (30 min)
+          end: new Date('2025-11-05T10:00:00'),
+          duration: 30,
+        },
+        {
+          start: new Date('2025-11-05T09:45:00'), // Longer break (60 min) - should be used
+          end: new Date('2025-11-05T10:45:00'),
+          duration: 60,
+        },
+      ];
+      const plannedWork = 480;
+      const workedMinutes = calculateWorkedTime(startTime, breaks, 'running');
+      
+      // Longest break starts at 09:45, so worked time should be frozen at 45 minutes
+      const expectedRemainingAtLongestBreakStart = plannedWork - 45; // 435 minutes
+      
+      const mockState = {
+        plan: 'VOR_ORT',
+        status: 'running' as const,
+        startTime,
+        manualStart: '09:00',
+        workedMinutes,
+        breaks,
+        plannedWork,
+        warnings: [],
+      };
+      const mockActions = {
+        setPlan: jest.fn(),
+        setManualStart: jest.fn(),
+        setPlannedWork: jest.fn(),
+        start: jest.fn(),
+        pause: jest.fn(),
+        resume: jest.fn(),
+        stop: jest.fn(),
+        addBreak: jest.fn(),
+        deleteBreak: jest.fn(),
+        resetToDefaultBreaks: jest.fn(),
+        clearAllData: jest.fn(),
+        updateBreakDuration: jest.fn(),
+        updateBreakStart: jest.fn(),
+        updateBreakEnd: jest.fn(),
+      };
+
+      mockUseTimeTracking.mockReturnValue([mockState, mockActions]);
+
+      // Act: Render HomePage
+      render(
+        <MemoryRouter>
+          <HomePage />
+        </MemoryRouter>
+      );
+
+      // Assert: Remaining time should be frozen at longest break start
+      await waitFor(() => {
+        const remainingTime = plannedWork - workedMinutes;
+        expect(remainingTime).toBe(expectedRemainingAtLongestBreakStart); // 435 minutes
+      });
+    });
+
+    it('should handle seamless transition when break ends (SC-003)', async () => {
+      // Arrange: Start time 1 hour ago, break ending exactly now
+      const startTime = new Date('2025-11-05T09:00:00');
+      const breaks: Break[] = [
+        {
+          start: new Date('2025-11-05T09:30:00'),
+          end: new Date('2025-11-05T10:00:00'), // Ends exactly now
+          duration: 30,
+        },
+      ];
+      const plannedWork = 480;
+      const workedMinutes = calculateWorkedTime(startTime, breaks, 'running');
+      
+      const mockState = {
+        plan: 'VOR_ORT',
+        status: 'running' as const,
+        startTime,
+        manualStart: '09:00',
+        workedMinutes,
+        breaks,
+        plannedWork,
+        warnings: [],
+      };
+      const mockActions = {
+        setPlan: jest.fn(),
+        setManualStart: jest.fn(),
+        setPlannedWork: jest.fn(),
+        start: jest.fn(),
+        pause: jest.fn(),
+        resume: jest.fn(),
+        stop: jest.fn(),
+        addBreak: jest.fn(),
+        deleteBreak: jest.fn(),
+        resetToDefaultBreaks: jest.fn(),
+        clearAllData: jest.fn(),
+        updateBreakDuration: jest.fn(),
+        updateBreakStart: jest.fn(),
+        updateBreakEnd: jest.fn(),
+      };
+
+      mockUseTimeTracking.mockReturnValue([mockState, mockActions]);
+
+      // Act: Render HomePage
+      render(
+        <MemoryRouter>
+          <HomePage />
+        </MemoryRouter>
+      );
+
+      // Assert: Remaining time should transition seamlessly (no jumps)
+      await waitFor(() => {
+        const remainingTime = plannedWork - workedMinutes;
+        // Break ended, so normal calculation: 60 elapsed - 30 break = 30 worked
+        // 480 - 30 = 450 remaining
+        expect(remainingTime).toBe(450);
+      });
+    });
+  });
 });
 

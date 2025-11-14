@@ -23,23 +23,105 @@ const TimeDisplay: React.FC<TimeDisplayProps> = ({
     
     // Calculate remaining time with seconds precision based on current time
     const remainingTimeWithSeconds = useMemo(() => {
-        if (!startTime) return plannedWork;
+        if (!startTime) {
+            return {
+                minutes: plannedWork,
+                seconds: 0,
+                hasActiveBreak: false
+            };
+        }
         
         const now = new Date();
         
-        // Calculate actual elapsed time in seconds (without rounding)
-        const elapsedSeconds = (now.getTime() - startTime.getTime()) / 1000;
-        
         // Calculate break time in seconds
+        // Normalize break dates to match the startTime date (same day)
         const validBreaks = breaks.filter((b) => {
             if (!b.start || !b.end) return false;
             const start = b.start instanceof Date ? b.start : new Date(b.start);
             const end = b.end instanceof Date ? b.end : new Date(b.end);
             return !isNaN(start.getTime()) && !isNaN(end.getTime());
+        }).map((b) => {
+            const start = b.start instanceof Date ? b.start : new Date(b.start);
+            const end = b.end instanceof Date ? b.end : new Date(b.end);
+            
+            // Normalize break dates to match startTime date (same day)
+            const normalizedStart = new Date(
+                startTime.getFullYear(),
+                startTime.getMonth(),
+                startTime.getDate(),
+                start.getHours(),
+                start.getMinutes(),
+                start.getSeconds(),
+                start.getMilliseconds()
+            );
+            
+            const normalizedEnd = new Date(
+                startTime.getFullYear(),
+                startTime.getMonth(),
+                startTime.getDate(),
+                end.getHours(),
+                end.getMinutes(),
+                end.getSeconds(),
+                end.getMilliseconds()
+            );
+            
+            return {
+                ...b,
+                start: normalizedStart,
+                end: normalizedEnd
+            };
         });
         
-        // Check for active break
-        const activeBreak = getActiveBreak(validBreaks, now);
+        // Detect active break with error handling (graceful degradation)
+        let activeBreak: Break | null = null;
+        try {
+            activeBreak = getActiveBreak(validBreaks, now);
+        } catch (error) {
+            // Graceful degradation: fall back to normal calculation if break detection fails
+            activeBreak = null;
+        }
+        
+        // Freeze calculation time at break start if active break detected
+        // Follows same pattern as calculateWorkedTime in timeUtils.ts
+        let calculationTime: Date;
+        if (activeBreak && activeBreak.start) {
+            // Freeze time at break start - round down to nearest minute to prevent drift
+            const breakStart = activeBreak.start;
+            calculationTime = new Date(
+                breakStart.getFullYear(),
+                breakStart.getMonth(),
+                breakStart.getDate(),
+                breakStart.getHours(),
+                breakStart.getMinutes(),
+                0, // Set seconds and milliseconds to 0
+                0
+            );
+        } else {
+            // Use current time, but round down to nearest minute to prevent drift
+            calculationTime = new Date(
+                now.getFullYear(),
+                now.getMonth(),
+                now.getDate(),
+                now.getHours(),
+                now.getMinutes(),
+                0, // Set seconds and milliseconds to 0
+                0
+            );
+        }
+        
+        // Round start time down to nearest minute for consistent calculation
+        const roundedStartTime = new Date(
+            startTime.getFullYear(),
+            startTime.getMonth(),
+            startTime.getDate(),
+            startTime.getHours(),
+            startTime.getMinutes(),
+            0,
+            0
+        );
+        
+        // Calculate elapsed time using calculationTime (frozen at break start if active break)
+        const elapsedSeconds = (calculationTime.getTime() - roundedStartTime.getTime()) / 1000;
         
         // Calculate worked time in seconds
         let workedSeconds = elapsedSeconds;
@@ -51,30 +133,90 @@ const TimeDisplay: React.FC<TimeDisplayProps> = ({
             if (b.start && b.end) {
                 const breakStart = b.start instanceof Date ? b.start : new Date(b.start);
                 const breakEnd = b.end instanceof Date ? b.end : new Date(b.end);
-                if (now >= breakEnd) {
+                // Use calculationTime instead of now for consistency
+                if (calculationTime >= breakEnd) {
                     // Completed break - subtract full duration
                     workedSeconds -= (breakEnd.getTime() - breakStart.getTime()) / 1000;
                 } else if (activeBreak && b.start === activeBreak.start) {
                     // Active break - subtract time until break start
-                    workedSeconds -= (breakStart.getTime() - startTime.getTime()) / 1000;
-                    // Don't count time during active break
-                    workedSeconds -= (now.getTime() - breakStart.getTime()) / 1000;
+                    workedSeconds -= (breakStart.getTime() - roundedStartTime.getTime()) / 1000;
+                    // Don't count time during active break (already frozen at break start)
                 }
             }
         });
         
-        // Calculate remaining time in seconds
+        // Calculate remaining time in seconds with full precision
         const plannedSeconds = plannedWork * 60;
-        const remainingSeconds = Math.max(0, plannedSeconds - workedSeconds);
         
-        return remainingSeconds / 60; // Convert back to minutes with fractional part
+        // If active break, use calculationTime (frozen). Otherwise, use full precision from now
+        let preciseElapsedSeconds: number;
+        if (activeBreak && activeBreak.start) {
+            // During active break: use calculationTime (already rounded to minutes)
+            preciseElapsedSeconds = (calculationTime.getTime() - roundedStartTime.getTime()) / 1000;
+        } else {
+            // No active break: use full precision from current time
+            preciseElapsedSeconds = (now.getTime() - roundedStartTime.getTime()) / 1000;
+        }
+        
+        // Calculate worked time in seconds with full precision
+        let preciseWorkedSeconds = preciseElapsedSeconds;
+        
+        // Subtract completed breaks only
+        validBreaks.forEach((b) => {
+            if (b.start && b.end) {
+                const breakStart = b.start instanceof Date ? b.start : new Date(b.start);
+                const breakEnd = b.end instanceof Date ? b.end : new Date(b.end);
+                if (calculationTime >= breakEnd) {
+                    // Completed break - subtract full duration
+                    preciseWorkedSeconds -= (breakEnd.getTime() - breakStart.getTime()) / 1000;
+                } else if (activeBreak && b.start === activeBreak.start) {
+                    // Active break - subtract time until break start
+                    preciseWorkedSeconds -= (breakStart.getTime() - roundedStartTime.getTime()) / 1000;
+                }
+            }
+        });
+        
+        // Calculate remaining time in seconds with full precision
+        // Allow negative values for overtime calculation
+        const preciseRemainingSeconds = plannedSeconds - preciseWorkedSeconds;
+        
+        // Calculate remaining time in minutes (for minutes display)
+        const remainingMinutes = preciseRemainingSeconds / 60;
+        
+        // Calculate seconds: extract from remaining seconds, or 0 if active break (frozen)
+        // Use absolute value for seconds calculation to handle negative values correctly
+        const remainingSecondsValue = activeBreak ? 0 : Math.floor(Math.abs(preciseRemainingSeconds) % 60);
+        
+        // Return object with both minutes and seconds for proper display
+        return {
+            minutes: remainingMinutes,
+            seconds: remainingSecondsValue,
+            hasActiveBreak: !!activeBreak
+        };
     }, [plannedWork, workedMinutes, startTime, breaks, currentTime]);
     
-    const remainingMinutes = Math.floor(remainingTimeWithSeconds);
-    const remainingSeconds = Math.floor((remainingTimeWithSeconds % 1) * 60);
+    // Determine overtime based on remainingTimeWithSeconds (which is frozen during breaks)
+    // If remainingTimeWithSeconds.minutes <= 0, we have overtime
+    const hasOvertime = remainingTimeWithSeconds.minutes <= 0;
     
-    const overtimeMinutes = Math.max(0, workedMinutes - plannedWork);
-    const hasOvertime = overtimeMinutes > 0;
+    // Calculate overtime: if negative remaining time, convert to positive overtime
+    let overtimeMinutes = 0;
+    let overtimeSeconds = 0;
+    if (hasOvertime) {
+        // Calculate total overtime in seconds (negative remaining time)
+        const overtimeTotalSeconds = Math.abs(remainingTimeWithSeconds.minutes * 60);
+        overtimeMinutes = Math.floor(overtimeTotalSeconds / 60);
+        // Use actual seconds from remainingTimeWithSeconds if available, otherwise calculate from fractional minutes
+        if (remainingTimeWithSeconds.hasActiveBreak) {
+            overtimeSeconds = 0; // Frozen during break
+        } else {
+            // Calculate seconds from the fractional part of minutes, or use the actual seconds
+            overtimeSeconds = Math.floor(overtimeTotalSeconds % 60);
+        }
+    }
+    
+    const remainingMinutes = hasOvertime ? 0 : Math.floor(remainingTimeWithSeconds.minutes);
+    const remainingSeconds = hasOvertime ? 0 : remainingTimeWithSeconds.seconds;
 
     // Update current time every second for real-time break detection
     useEffect(() => {
@@ -162,7 +304,7 @@ const TimeDisplay: React.FC<TimeDisplayProps> = ({
                         {hasOvertime ? formatMinutesReadable(overtimeMinutes) : formatMinutesReadable(remainingMinutes)}
                     </div>
                     <div className="text-sm text-white/70 mt-1">
-                        {hasOvertime ? formatSecondsReadable(overtimeMinutes) : `${remainingSeconds} Sekunde${remainingSeconds !== 1 ? 'n' : ''}`}
+                        {hasOvertime ? `${overtimeSeconds} Sekunde${overtimeSeconds !== 1 ? 'n' : ''}` : `${remainingSeconds} Sekunde${remainingSeconds !== 1 ? 'n' : ''}`}
                     </div>
                 </div>
                 <div 

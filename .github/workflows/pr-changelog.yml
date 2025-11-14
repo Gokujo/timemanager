@@ -1,0 +1,179 @@
+name: PR Changelog Extractor
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  extract-changelog:
+    name: Extract Changelog for PR
+    runs-on: ubuntu-latest
+    if: startsWith(github.head_ref, 'releases/v')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from branch
+        id: version
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+          VERSION=$(echo "$BRANCH_NAME" | sed 's/^releases\/v//')
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Current version: ${VERSION}"
+
+      - name: Find previous version
+        id: previous-version
+        run: |
+          CURRENT_VERSION="${{ steps.version.outputs.version }}"
+          chmod +x .github/scripts/get-latest-version.sh
+          
+          # Use helper script to get latest version
+          LATEST_VERSION=$(.github/scripts/get-latest-version.sh)
+          
+          # If current version is greater than latest, use latest as previous
+          if [ "$(printf '%s\n' "$CURRENT_VERSION" "$LATEST_VERSION" | sort -V | tail -1)" = "$CURRENT_VERSION" ] && [ "$CURRENT_VERSION" != "$LATEST_VERSION" ]; then
+            PREVIOUS_VERSION="$LATEST_VERSION"
+          else
+            # Current version is latest or less, find previous from branches/tags
+            PREVIOUS_VERSION=$(git branch -r | grep -E "releases/v[0-9]+\.[0-9]+\.[0-9]+" | sed 's|origin/releases/v||' | sort -V | awk -v current="$CURRENT_VERSION" '$1 < current {prev=$1} END {print prev}')
+          fi
+          
+          if [ -z "$PREVIOUS_VERSION" ]; then
+            # Fallback: try to get from CHANGELOG.md
+            PREVIOUS_VERSION=$(grep -E "^## \[[0-9]+\.[0-9]+\.[0-9]+\]" CHANGELOG.md | head -2 | tail -1 | sed 's/## \[\(.*\)\].*/\1/')
+          fi
+          
+          if [ -z "$PREVIOUS_VERSION" ]; then
+            PREVIOUS_VERSION="0.0.0"
+          fi
+          
+          echo "previous-version=${PREVIOUS_VERSION}" >> $GITHUB_OUTPUT
+          echo "Previous version: ${PREVIOUS_VERSION}"
+
+      - name: Extract changelog entry
+        id: changelog
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          PREV_VERSION="${{ steps.previous-version.outputs.previous-version }}"
+          
+          # Extract changelog section for current version
+          CHANGELOG_ENTRY=$(awk -v version="$VERSION" '
+            BEGIN { in_section = 0; found = 0 }
+            /^## \[/ {
+              if (in_section) exit
+              if ($0 ~ "\\[" version "\\]") {
+                in_section = 1
+                found = 1
+                print
+                next
+              }
+            }
+            in_section {
+              if (/^## \[/) exit
+              print
+            }
+          ' CHANGELOG.md)
+          
+          # Base64 encode changelog to safely handle special characters
+          # Use -w 0 for Linux (no line breaks) or remove -w for macOS compatibility
+          if base64 --help 2>&1 | grep -q "\-w"; then
+            CHANGELOG_B64=$(echo "$CHANGELOG_ENTRY" | base64 -w 0)
+          else
+            CHANGELOG_B64=$(echo "$CHANGELOG_ENTRY" | base64 | tr -d '\n')
+          fi
+          echo "changelog-b64=${CHANGELOG_B64}" >> $GITHUB_OUTPUT
+
+      - name: Get changed files
+        id: changed-files
+        run: |
+          PREV_VERSION="${{ steps.previous-version.outputs.previous-version }}"
+          CURRENT_VERSION="${{ steps.version.outputs.version }}"
+          
+          # Try to get base branch
+          BASE_BRANCH="releases/v${PREV_VERSION}"
+          
+          # Check if base branch exists
+          if git ls-remote --heads origin "$BASE_BRANCH" | grep -q "$BASE_BRANCH"; then
+            git fetch origin "$BASE_BRANCH:$BASE_BRANCH" || true
+            FILES=$(git diff --name-only "$BASE_BRANCH"..HEAD | wc -l)
+            ADDITIONS=$(git diff --shortstat "$BASE_BRANCH"..HEAD | awk '{print $4}' || echo "0")
+            DELETIONS=$(git diff --shortstat "$BASE_BRANCH"..HEAD | awk '{print $6}' || echo "0")
+          else
+            # Fallback to main branch
+            FILES=$(git diff --name-only origin/main...HEAD | wc -l)
+            ADDITIONS=$(git diff --shortstat origin/main...HEAD | awk '{print $4}' || echo "0")
+            DELETIONS=$(git diff --shortstat origin/main...HEAD | awk '{print $6}' || echo "0")
+          fi
+          
+          echo "file-count=${FILES}" >> $GITHUB_OUTPUT
+          echo "additions=${ADDITIONS}" >> $GITHUB_OUTPUT
+          echo "deletions=${DELETIONS}" >> $GITHUB_OUTPUT
+
+      - name: Create PR comment
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const version = '${{ steps.version.outputs.version }}';
+            const prevVersion = '${{ steps.previous-version.outputs.previous-version }}';
+            // Decode base64-encoded changelog to safely handle special characters
+            const changelogB64 = '${{ steps.changelog.outputs.changelog-b64 }}';
+            const changelogRaw = Buffer.from(changelogB64, 'base64').toString('utf-8');
+            const fileCount = '${{ steps.changed-files.outputs.file-count }}';
+            const additions = '${{ steps.changed-files.outputs.additions }}';
+            const deletions = '${{ steps.changed-files.outputs.deletions }}';
+            
+            // Build comment using string concatenation to avoid template string issues
+            const comment = '## 📋 Automatisch generierte Changelog-Informationen\n\n' +
+              '**Version:** `v' + version + '`\n' +
+              '**Vorgängerversion:** `v' + prevVersion + '`\n\n' +
+              '### 📊 Statistik\n' +
+              '- **Geänderte Dateien:** ' + fileCount + '\n' +
+              '- **Hinzugefügte Zeilen:** ' + additions + '\n' +
+              '- **Entfernte Zeilen:** ' + deletions + '\n\n' +
+              '### 📝 Changelog-Eintrag\n\n' +
+              '```markdown\n' +
+              changelogRaw +
+              '\n```\n\n' +
+              '---\n' +
+              '*Diese Informationen wurden automatisch aus CHANGELOG.md extrahiert.*';
+            
+            // Find existing comment
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.data.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('Automatisch generierte Changelog-Informationen')
+            );
+            
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: comment
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }
+

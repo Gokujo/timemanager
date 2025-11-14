@@ -17,6 +17,7 @@ export const calculateWorkedTime = (
   const now = new Date();
   
   // Ensure breaks have proper Date objects for active break detection
+  // Normalize break dates to match the startTime date (same day)
   const validBreaks = breaks.filter((b) => {
     if (!b.start || !b.end) return false;
     // Ensure they are Date objects
@@ -24,11 +25,38 @@ export const calculateWorkedTime = (
     const end = b.end instanceof Date ? b.end : new Date(b.end);
     // Ensure dates are valid
     return !isNaN(start.getTime()) && !isNaN(end.getTime());
-  }).map((b) => ({
-    ...b,
-    start: b.start instanceof Date ? b.start : new Date(b.start!),
-    end: b.end instanceof Date ? b.end : new Date(b.end!)
-  }));
+  }).map((b) => {
+    const start = b.start instanceof Date ? b.start : new Date(b.start!);
+    const end = b.end instanceof Date ? b.end : new Date(b.end!);
+    
+    // Normalize break dates to match startTime date (same day)
+    // This ensures breaks work correctly even if they were created with a different date
+    const normalizedStart = new Date(
+      startTime.getFullYear(),
+      startTime.getMonth(),
+      startTime.getDate(),
+      start.getHours(),
+      start.getMinutes(),
+      start.getSeconds(),
+      start.getMilliseconds()
+    );
+    
+    const normalizedEnd = new Date(
+      startTime.getFullYear(),
+      startTime.getMonth(),
+      startTime.getDate(),
+      end.getHours(),
+      end.getMinutes(),
+      end.getSeconds(),
+      end.getMilliseconds()
+    );
+    
+    return {
+      ...b,
+      start: normalizedStart,
+      end: normalizedEnd
+    };
+  });
   
   // Check if there's currently an active break
   const activeBreak = getActiveBreak(validBreaks, now);
@@ -75,18 +103,28 @@ export const calculateWorkedTime = (
   const elapsed = (calculationTime.getTime() - roundedStartTime.getTime()) / 1000 / 60;
   
   // Calculate break time for completed breaks only
-  // Only count breaks that started AFTER work started and have already ended
+  // Count breaks that overlap with work time (even if they started before work started)
+  // Active breaks are NOT included here because calculationTime is already frozen at break start
   const breakTime = validBreaks.reduce((sum, b) => {
     if (b.start && b.end) {
-      // Only count breaks that started after work started
-      if (b.start >= roundedStartTime) {
-        // Only count completed breaks (breaks that have ended)
-        if (now >= b.end) {
-          // For completed breaks, use full duration
-          return sum + (b.end.getTime() - b.start.getTime()) / 1000 / 60;
+      // Skip active break - it's already handled by freezing calculationTime
+      if (activeBreak && b.start === activeBreak.start && b.end === activeBreak.end) {
+        return sum;
+      }
+      
+      // For completed breaks, calculate the overlap between break and work time
+      // Break must end after work started and start before calculation time
+      if (b.end > roundedStartTime && b.start < calculationTime) {
+        // Calculate the actual break time that overlaps with work time
+        const breakStart = b.start > roundedStartTime ? b.start : roundedStartTime;
+        const breakEnd = b.end < calculationTime ? b.end : calculationTime;
+        
+        // Only count if there's actual overlap (breakEnd > breakStart)
+        if (breakEnd > breakStart) {
+          return sum + (breakEnd.getTime() - breakStart.getTime()) / 1000 / 60;
         }
       }
-      // Don't count breaks that started before work started, active breaks, or future breaks
+      // Don't count breaks that don't overlap with work time
       return sum;
     }
     return sum;
@@ -114,16 +152,43 @@ export const calculateEndTime = (
   const now = new Date();
   
   // Ensure breaks have proper Date objects
+  // Normalize break dates to match the startTime date (same day)
   const validBreaks = breaks.filter((b) => {
     if (!b.start || !b.end) return false;
     const start = b.start instanceof Date ? b.start : new Date(b.start);
     const end = b.end instanceof Date ? b.end : new Date(b.end);
     return !isNaN(start.getTime()) && !isNaN(end.getTime());
-  }).map((b) => ({
-    ...b,
-    start: b.start instanceof Date ? b.start : new Date(b.start!),
-    end: b.end instanceof Date ? b.end : new Date(b.end!)
-  }));
+  }).map((b) => {
+    const start = b.start instanceof Date ? b.start : new Date(b.start!);
+    const end = b.end instanceof Date ? b.end : new Date(b.end!);
+    
+    // Normalize break dates to match startTime date (same day)
+    const normalizedStart = new Date(
+      startTime.getFullYear(),
+      startTime.getMonth(),
+      startTime.getDate(),
+      start.getHours(),
+      start.getMinutes(),
+      start.getSeconds(),
+      start.getMilliseconds()
+    );
+    
+    const normalizedEnd = new Date(
+      startTime.getFullYear(),
+      startTime.getMonth(),
+      startTime.getDate(),
+      end.getHours(),
+      end.getMinutes(),
+      end.getSeconds(),
+      end.getMilliseconds()
+    );
+    
+    return {
+      ...b,
+      start: normalizedStart,
+      end: normalizedEnd
+    };
+  });
   
   // Check if there's currently an active break
   const activeBreak = getActiveBreak(validBreaks, now);

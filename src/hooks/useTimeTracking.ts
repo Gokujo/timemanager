@@ -98,24 +98,48 @@ export const useTimeTracking = (): [TimeTrackingState, TimeTrackingActions] => {
     }
   }, [workedMinutes, breaks, status, calculateTotalBreakTime]);
 
-  // Validation
-  const validateAndSetWarnings = useCallback(() => {
-    if (!plan || !plans[plan]) return;
+  // Validation is now handled directly in useEffect (line 227-241)
+  // Removed validateAndSetWarnings callback to prevent infinite loops
 
-    // Ensure required breaks are added
-    ensureRequiredBreaks();
+  // Update startTime when manualStart changes and work is running/paused
+  useEffect(() => {
+    // Only update if work is running or paused (not stopped)
+    if (status === 'stopped') {
+      return;
+    }
 
-    const result: ValidationResult = validateWorkTime(
-      workedMinutes,
-      breaks,
-      startTime,
-      status,
-      plans[plan],
-      plannedWork
-    );
+    // Parse manualStart time
+    const [hours, minutes] = manualStart.split(':').map(Number);
+    const now = new Date();
+    const newStartTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, 0, 0);
 
-    setWarnings(result.warnings);
-  }, [workedMinutes, breaks, startTime, status, plan, plannedWork, ensureRequiredBreaks, plans]);
+    // Only update if the time actually changed
+    // Use functional update to avoid dependency on startTime and prevent infinite loop
+    setStartTime(prevStartTime => {
+      // If no previous start time, set it
+      if (!prevStartTime) {
+        // Validate: start time cannot be in the future
+        if (newStartTime > now) {
+          setWarnings(['Arbeitsbeginn darf nicht in der Zukunft liegen!']);
+          return null;
+        }
+        return newStartTime;
+      }
+      
+      // If time hasn't changed, don't update
+      if (newStartTime.getTime() === prevStartTime.getTime()) {
+        return prevStartTime; // No change needed
+      }
+      
+      // Validate: start time cannot be in the future
+      if (newStartTime > now) {
+        setWarnings(['Arbeitsbeginn darf nicht in der Zukunft liegen!']);
+        return prevStartTime; // Don't update
+      }
+      
+      return newStartTime;
+    });
+  }, [manualStart, status]); // Removed startTime from dependencies to prevent infinite loop
 
   // Update worked minutes in real-time
   useEffect(() => {
@@ -126,6 +150,13 @@ export const useTimeTracking = (): [TimeTrackingState, TimeTrackingActions] => {
       return;
     }
 
+    // Calculate immediately when startTime changes
+    if (status === 'running' || status === 'paused') {
+      const calculatedTime = calculateWorkedTime(startTime, breaks, status);
+      setWorkedMinutes(calculatedTime);
+    }
+
+    // Then update every second
     const interval = setInterval(() => {
       if (status === 'running' || status === 'paused') {
         const calculatedTime = calculateWorkedTime(startTime, breaks, status);
@@ -136,10 +167,81 @@ export const useTimeTracking = (): [TimeTrackingState, TimeTrackingActions] => {
     return () => clearInterval(interval);
   }, [status, startTime, breaks]);
 
+  // Ensure required breaks are added (separate from validation to prevent infinite loop)
+  // Only run when workedMinutes changes significantly (every minute) to avoid infinite loops
+  useEffect(() => {
+    if (status !== 'running' && status !== 'stopped') return;
+
+    // Use functional update to avoid dependency on breaks
+    setBreaks(currentBreaks => {
+      const totalBreakTime = currentBreaks.reduce((sum, b) => sum + (b.duration || 0), 0);
+
+      // No automatic breaks needed if sufficient breaks are already present
+      if ((workedMinutes <= 6 * 60) || 
+          (workedMinutes > 6 * 60 && workedMinutes <= 9 * 60 && totalBreakTime >= 30) ||
+          (workedMinutes > 9 * 60 && totalBreakTime >= 45)) {
+        return currentBreaks; // No change needed
+      }
+
+      // Check if a break with the required duration already exists
+      const hasRequiredBreak = currentBreaks.some(b => 
+        !b.start && !b.end && (
+          (workedMinutes > 9 * 60 && b.duration === 45) ||
+          (workedMinutes > 6 * 60 && workedMinutes <= 9 * 60 && b.duration === 30)
+        )
+      );
+
+      if (hasRequiredBreak) {
+        return currentBreaks; // Required break already exists
+      }
+
+      // If no breaks or all breaks have start and end times, add a new break
+      const hasIncompleteBreak = currentBreaks.some(b => !b.start || !b.end);
+
+      if (!hasIncompleteBreak) {
+        // Create a copy of the breaks array
+        const newBreaks = [...currentBreaks];
+        
+        // Add appropriate break based on worked time
+        if (workedMinutes > 9 * 60 && totalBreakTime < 45) {
+          newBreaks.push({ start: null, end: null, duration: 45 });
+          return newBreaks;
+        } else if (workedMinutes > 6 * 60 && totalBreakTime < 30) {
+          newBreaks.push({ start: null, end: null, duration: 30 });
+          return newBreaks;
+        }
+      }
+      
+      return currentBreaks; // No change needed
+    });
+  }, [Math.floor(workedMinutes / 60), status]); // Removed breaks from dependencies to prevent infinite loop
+
   // Validate and set warnings whenever relevant state changes
   useEffect(() => {
-    validateAndSetWarnings();
-  }, [workedMinutes, breaks, startTime, status, plan, plannedWork, validateAndSetWarnings]);
+    if (!plan || !plans[plan]) return;
+
+    const result: ValidationResult = validateWorkTime(
+      workedMinutes,
+      breaks,
+      startTime,
+      status,
+      plans[plan],
+      plannedWork
+    );
+
+    // Only update warnings if they actually changed to prevent infinite loops
+    setWarnings(prevWarnings => {
+      // Compare arrays by converting to strings
+      const newWarningsStr = JSON.stringify(result.warnings.sort());
+      const prevWarningsStr = JSON.stringify(prevWarnings.sort());
+      
+      if (newWarningsStr === prevWarningsStr) {
+        return prevWarnings; // No change, return previous to prevent re-render
+      }
+      
+      return result.warnings;
+    });
+  }, [workedMinutes, breaks, startTime, status, plan, plannedWork, plans]);
 
   // Save state to localStorage whenever it changes
   useEffect(() => {
@@ -229,8 +331,8 @@ export const useTimeTracking = (): [TimeTrackingState, TimeTrackingActions] => {
 
   const stop = useCallback(() => {
     setStatus('stopped');
-    validateAndSetWarnings();
-  }, [validateAndSetWarnings]);
+    // Validation will be triggered automatically by useEffect
+  }, []);
 
   const addBreak = useCallback(() => {
     // Validate overlap before adding new break
@@ -244,13 +346,13 @@ export const useTimeTracking = (): [TimeTrackingState, TimeTrackingActions] => {
   const deleteBreak = useCallback((index: number) => {
     const newBreaks = breaks.filter((_, i) => i !== index);
     setBreaks(newBreaks);
-    validateAndSetWarnings();
-  }, [breaks, validateAndSetWarnings]);
+    // Validation will be triggered automatically by useEffect
+  }, [breaks]);
 
   const resetToDefaultBreaks = useCallback(() => {
     setBreaks(createDefaultBreaks());
-    validateAndSetWarnings();
-  }, [validateAndSetWarnings]);
+    // Validation will be triggered automatically by useEffect
+  }, []);
 
   const clearAllData = useCallback(() => {
     // Bestätigung des Benutzers einholen
@@ -288,8 +390,8 @@ export const useTimeTracking = (): [TimeTrackingState, TimeTrackingActions] => {
     const newBreaks = [...breaks];
     newBreaks[index].duration = parseInt(value) || 0;
     setBreaks(newBreaks);
-    validateAndSetWarnings();
-  }, [breaks, validateAndSetWarnings]);
+    // Validation will be triggered automatically by useEffect
+  }, [breaks]);
 
   const updateBreakStart = useCallback((index: number, value: string) => {
     if (!startTime) return;
@@ -325,8 +427,8 @@ export const useTimeTracking = (): [TimeTrackingState, TimeTrackingActions] => {
     }
     
     setBreaks(newBreaks);
-    validateAndSetWarnings();
-  }, [breaks, startTime, validateAndSetWarnings]);
+    // Validation will be triggered automatically by useEffect
+  }, [breaks, startTime]);
 
   const updateBreakEnd = useCallback((index: number, value: string) => {
     if (!startTime) return;
@@ -362,13 +464,13 @@ export const useTimeTracking = (): [TimeTrackingState, TimeTrackingActions] => {
     }
     
     setBreaks(newBreaks);
-    validateAndSetWarnings();
-  }, [breaks, startTime, validateAndSetWarnings]);
+    // Validation will be triggered automatically by useEffect
+  }, [breaks, startTime]);
 
   const setPlannedWorkMinutes = useCallback((minutes: number) => {
     setPlannedWork(minutes || minWorkMinutes);
-    validateAndSetWarnings();
-  }, [minWorkMinutes, validateAndSetWarnings]);
+    // Validation will be triggered automatically by useEffect
+  }, [minWorkMinutes]);
 
   return [
     // State

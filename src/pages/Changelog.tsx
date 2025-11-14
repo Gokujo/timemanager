@@ -15,6 +15,29 @@ const Changelog: React.FC = () => {
   const versions = useMemo<VersionEntry[]>(
     () => [
       {
+        version: 'v0.2.6',
+        date: '14.11.2025',
+        sections: [
+          {
+            title: 'Behoben',
+            items: [
+              'Verbleibende Zeit wird jetzt korrekt eingefroren, wenn eine aktive Pause erkannt wird (konsistent mit geleisteter Arbeitszeit).',
+              'Sekundenzähler aktualisiert sich jetzt korrekt jede Sekunde (war zuvor bei 0 Sekunden eingefroren).',
+              'Überstunden werden jetzt korrekt berechnet und angezeigt, auch mit Sekunden-Präzision.',
+              'Wenn der "Tatsächlicher Arbeitsbeginn" geändert wird, wird die geleistete Arbeitszeit sofort neu berechnet und angezeigt.'
+            ]
+          },
+          {
+            title: 'Geändert',
+            items: []
+          },
+          {
+            title: 'Neu',
+            items: []
+          }
+        ]
+      },
+      {
         version: 'v0.2.5',
         date: '05.11.2025',
         sections: [
