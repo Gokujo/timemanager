@@ -69,11 +69,14 @@ jobs:
             }
           ' CHANGELOG.md)
           
-          # Escape for GitHub output
-          CHANGELOG_ENTRY=$(echo "$CHANGELOG_ENTRY" | sed ':a;N;$!ba;s/\n/%0A/g')
-          echo "changelog<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGELOG_ENTRY" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # Base64 encode changelog to safely handle special characters
+          # Use -w 0 for Linux (no line breaks) or remove -w for macOS compatibility
+          if base64 --help 2>&1 | grep -q "\-w"; then
+            CHANGELOG_B64=$(echo "$CHANGELOG_ENTRY" | base64 -w 0)
+          else
+            CHANGELOG_B64=$(echo "$CHANGELOG_ENTRY" | base64 | tr -d '\n')
+          fi
+          echo "changelog-b64=${CHANGELOG_B64}" >> $GITHUB_OUTPUT
 
       - name: Get changed files
         id: changed-files
@@ -108,30 +111,27 @@ jobs:
           script: |
             const version = '${{ steps.version.outputs.version }}';
             const prevVersion = '${{ steps.previous-version.outputs.previous-version }}';
-            const changelog = `${{ steps.changelog.outputs.changelog }}`;
+            // Decode base64-encoded changelog to safely handle special characters
+            const changelogB64 = '${{ steps.changelog.outputs.changelog-b64 }}';
+            const changelogRaw = Buffer.from(changelogB64, 'base64').toString('utf-8');
             const fileCount = '${{ steps.changed-files.outputs.file-count }}';
             const additions = '${{ steps.changed-files.outputs.additions }}';
             const deletions = '${{ steps.changed-files.outputs.deletions }}';
             
-            const comment = `## 📋 Automatisch generierte Changelog-Informationen
-            
-            **Version:** \`v${version}\`
-            **Vorgängerversion:** \`v${prevVersion}\`
-            
-            ### 📊 Statistik
-            - **Geänderte Dateien:** ${fileCount}
-            - **Hinzugefügte Zeilen:** ${additions}
-            - **Entfernte Zeilen:** ${deletions}
-            
-            ### 📝 Changelog-Eintrag
-            
-            \`\`\`markdown
-            ${changelog}
-            \`\`\`
-            
-            ---
-            *Diese Informationen wurden automatisch aus CHANGELOG.md extrahiert.*
-            `;
+            // Build comment using string concatenation to avoid template string issues
+            const comment = '## 📋 Automatisch generierte Changelog-Informationen\n\n' +
+              '**Version:** `v' + version + '`\n' +
+              '**Vorgängerversion:** `v' + prevVersion + '`\n\n' +
+              '### 📊 Statistik\n' +
+              '- **Geänderte Dateien:** ' + fileCount + '\n' +
+              '- **Hinzugefügte Zeilen:** ' + additions + '\n' +
+              '- **Entfernte Zeilen:** ' + deletions + '\n\n' +
+              '### 📝 Changelog-Eintrag\n\n' +
+              '```markdown\n' +
+              changelogRaw +
+              '\n```\n\n' +
+              '---\n' +
+              '*Diese Informationen wurden automatisch aus CHANGELOG.md extrahiert.*';
             
             // Find existing comment
             const comments = await github.rest.issues.listComments({
