@@ -83,7 +83,7 @@ const Footer: React.FC<FooterProps> = ({ className = '' }) => {
           aria-label="Zum Changelog"
           data-ripple-light="true"
         >
-          v0.2.5
+          v0.2.6
         </Link>
         <span className="text-white/50">•</span>
         

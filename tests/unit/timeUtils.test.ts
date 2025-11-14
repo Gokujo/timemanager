@@ -399,5 +399,56 @@ describe('Time Utilities - calculateWorkedTime', () => {
       expect(workedTime).toBeGreaterThanOrEqual(0);
     });
   });
+
+  describe('Remaining time calculation - freeze during active break', () => {
+    it('should freeze remaining time calculation during active break', () => {
+      // This test verifies the pattern used in TimeDisplay.tsx
+      // Arrange: Start time 1 hour ago, active break (started 15 minutes ago)
+      const startTime = new Date('2025-11-05T09:00:00');
+      const activeBreaks: Break[] = [
+        {
+          start: new Date('2025-11-05T09:45:00'), // Started 15 minutes ago
+          end: new Date('2025-11-05T10:15:00'), // Ends in 15 minutes
+          duration: 30,
+        },
+      ];
+      const status = 'running';
+      const plannedWork = 480; // 8 hours
+
+      // Act: Calculate worked time (frozen at break start)
+      const workedTime = calculateWorkedTime(startTime, activeBreaks, status);
+
+      // Assert: Worked time should be frozen at 45 minutes (break start)
+      expect(workedTime).toBe(45);
+      
+      // Remaining time should be: 480 - 45 = 435 minutes (frozen, not counting down)
+      const remainingTime = plannedWork - workedTime;
+      expect(remainingTime).toBe(435);
+    });
+
+    it('should handle error gracefully - fall back to normal calculation (FR-009)', () => {
+      // Arrange: Start time 30 minutes ago, breaks with potential error
+      const startTime = new Date('2025-11-05T09:30:00');
+      const breaks: Break[] = [
+        {
+          start: null, // Invalid break (no start time)
+          end: new Date('2025-11-05T10:00:00'),
+          duration: 30,
+        },
+      ];
+      const status = 'running';
+      const plannedWork = 480;
+
+      // Act: Calculate worked time (should handle gracefully)
+      const workedTime = calculateWorkedTime(startTime, breaks, status);
+
+      // Assert: Should return normal calculation (30 minutes), not crash
+      expect(workedTime).toBe(30);
+      
+      // Remaining time should be normal calculation: 480 - 30 = 450
+      const remainingTime = plannedWork - workedTime;
+      expect(remainingTime).toBe(450);
+    });
+  });
 });
 

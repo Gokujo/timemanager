@@ -7,6 +7,36 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.2.6] - 2025-11-14
+
+### Fixed
+
+- **Verbleibende Zeit während Pause**: "Verbleibende Zeit" wird jetzt korrekt eingefroren, wenn eine aktive Pause erkannt wird (konsistent mit geleisteter Arbeitszeit)
+- **Sekundenzähler**: Sekundenzähler aktualisiert sich jetzt korrekt jede Sekunde (war zuvor bei 0 Sekunden eingefroren)
+- **Überstunden-Anzeige**: Überstunden werden jetzt korrekt berechnet und aktualisiert, auch mit Sekunden-Präzision
+- **Arbeitsbeginn-Änderung**: Wenn der "Tatsächlicher Arbeitsbeginn" geändert wird, wird die geleistete Arbeitszeit sofort neu berechnet und angezeigt
+- **Pausenberechnung**: Pausen, die vor dem Arbeitsbeginn starten, aber danach enden, werden jetzt korrekt behandelt (nur der überlappende Teil wird abgezogen)
+- **Pausen-Datumsnormalisierung**: Pausen-Daten werden jetzt automatisch auf das Datum des Arbeitsbeginns normalisiert, um korrekte Berechnungen zu gewährleisten
+- **Endlosschleifen behoben**: Mehrere "Maximum update depth exceeded" Fehler behoben durch:
+  - Verwendung funktionaler State-Updates in `useTimeTracking` Hook
+  - Entfernung von `validateAndSetWarnings` Callback-Dependencies
+  - Optimierung der `useEffect` Dependencies
+  - Prüfung auf tatsächliche Änderungen vor State-Updates
+
+### Changed
+
+- `TimeDisplay` Komponente: Verbleibende Zeit-Berechnung verwendet jetzt `calculationTime` (eingefroren bei aktiver Pause) statt `now`
+- `calculateWorkedTime` Funktion: Pausen-Overlap-Berechnung verbessert für Pausen, die vor Arbeitsbeginn starten
+- `useTimeTracking` Hook: `ensureRequiredBreaks` verwendet jetzt funktionales State-Update, um Endlosschleifen zu vermeiden
+- `useTimeTracking` Hook: Validierung wird jetzt direkt in `useEffect` durchgeführt statt über Callback
+- Meta-Tag aktualisiert: `mobile-web-app-capable` hinzugefügt (neuer Standard), `apple-mobile-web-app-capable` bleibt für Rückwärtskompatibilität
+
+### Technical
+
+- Verbesserte Fehlerbehandlung: Graceful degradation bei Pausenerkennungsfehlern
+- Performance-Optimierung: Reduzierte unnötige Re-Renders durch State-Update-Prüfungen
+- Code-Stabilität: Eliminierung von React Hooks Endlosschleifen
+
 ## [0.2.5] - 2025-11-05
 
 ### Added
