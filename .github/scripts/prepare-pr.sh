@@ -75,8 +75,8 @@ CURRENT_DATE=$(date +%Y-%m-%d)
 
 # Replace placeholders in template
 if [ -f "$TEMPLATE_FILE" ]; then
-    sed -e "s/{VERSION}/${VERSION}/g" \
-        -e "s/{PREVIOUS_VERSION}/${PREVIOUS_VERSION}/g" \
+    sed -e "s/{VERSION}/[${VERSION}](https://github.com/Gokujo/timemanager/tree/releases/${VERSION})/g" \
+        -e "s/{PREVIOUS_VERSION}/[${PREVIOUS_VERSION}](https://github.com/Gokujo/timemanager/releases/tag/${PREVIOUS_VERSION})/g" \
         -e "s/{DATE}/${CURRENT_DATE}/g" \
         "$TEMPLATE_FILE" > /tmp/pr_description.md
     
